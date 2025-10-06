@@ -1,8 +1,11 @@
-package xml.json.transformer.infrastructure;
+package xml.json.transformer.application;
 
 import xml.json.transformer.domain.InvoiceData;
 import xml.json.transformer.domain.UserData;
 import org.w3c.dom.*;
+import xml.json.transformer.infrastructure.JsonAdapter;
+import xml.json.transformer.infrastructure.XmlAdapter;
+
 import javax.xml.XMLConstants;
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.parsers.*;
@@ -13,8 +16,6 @@ import javax.xml.xpath.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class FileSystemAdapter implements XmlAdapter, JsonAdapter {
 

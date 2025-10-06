@@ -1,4 +1,4 @@
-package xml.json.transformer.application;
+package xml.json.transformer.util;
 
 import org.w3c.dom.Document;
 import xml.json.transformer.domain.InvoiceData;
