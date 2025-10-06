@@ -1,8 +1,10 @@
-package xml.json.transformer.infrastructure;
+package xml.json.transformer.application;
 
 import xml.json.transformer.domain.InvoiceData;
 import xml.json.transformer.domain.UserData;
 import org.w3c.dom.*;
+import xml.json.transformer.infrastructure.JsonAdapter;
+
 import javax.xml.XMLConstants;
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.parsers.*;
@@ -13,10 +15,8 @@ import javax.xml.xpath.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-public class FileSystemAdapter implements XmlAdapter, JsonAdapter {
+public class XmlAdapterService implements xml.json.transformer.infrastructure.XmlAdapter{
 
     private static String originalCodPrestador = "";
 
@@ -52,12 +52,6 @@ public class FileSystemAdapter implements XmlAdapter, JsonAdapter {
         System.out.println("✅ Archivo XML modificado guardado correctamente: " + path);
     }
 
-    @Override
-    public void writeJson(Object data, String path) throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        mapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(path), data);
-    }
 
     private XPath newXPath() {
         XPathFactory xpf = XPathFactory.newInstance();
@@ -117,6 +111,11 @@ public class FileSystemAdapter implements XmlAdapter, JsonAdapter {
         }
 
         System.out.println("✅ applyManualTransformations: XMLs internos procesados: " + processed);
+    }
+
+    @Override
+    public InvoiceData buildInvoiceData(Document doc) {
+        return null;
     }
 
     private void replaceGroupSchemeName(Document doc) throws Exception {
@@ -248,56 +247,23 @@ public class FileSystemAdapter implements XmlAdapter, JsonAdapter {
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
         return writer.toString();
     }
-
-    // ------------------------------------------------------------------
-    // JSON Builder (con valores por defecto)
-    // ------------------------------------------------------------------
-    @Override
-    public InvoiceData buildInvoiceData(Document doc) throws Exception {
+    public Document extractEmbeddedXml(Document doc) throws Exception {
         XPath xp = newXPath();
-        InvoiceData invoice = new InvoiceData();
-
-        invoice.numDocumentoIdObligado = xp.evaluate("string(//cbc:CompanyID)", doc);
-        if (invoice.numDocumentoIdObligado.isBlank()) invoice.numDocumentoIdObligado = "901829771";
-
-        invoice.numFactura = xp.evaluate("string(//cbc:ParentDocumentID)", doc);
-        if (invoice.numFactura.isBlank()) invoice.numFactura = "SER63";
-
-        UserData user = new UserData();
-        user.tipoDocumentoIdentificacion = "CC";
-        user.numDocumentoIdentificacion = "15648042";
-        user.tipoUsuario = "10";
-        user.fechaNacimiento = "1985-07-08";
-        user.codSexo = "M";
-        user.codPaisResidencia = "170";
-        user.codMunicipioResidencia = "23001";
-        user.codZonaTerritorialResidencia = "02";
-        user.incapacidad = "NO";
-        user.codPaisOrigen = "170";
-        user.consecutivo = 1;
-
-        UserData.OtrosServicios os = new UserData.OtrosServicios();
-        os.codPrestador = originalCodPrestador.isBlank() ? "230010254701" : originalCodPrestador;
-        os.numAutorizacion = xp.evaluate("string(//sts:InvoiceAuthorization)", doc);
-        if (os.numAutorizacion.isBlank()) os.numAutorizacion = "18764093822061";
-        os.idMIPRES = null;
-        os.fechaSuministroTecnologia = "2025-07-25 14:19";
-        os.tipoOS = "02";
-        os.codTecnologiaSalud = "601T01";
-        os.nomTecnologiaSalud = "TRASLADO PRIMARIO DE ACCIDENTES DE TRANSITO 202";
-        os.cantidadOS = 1;
-        os.tipoDocumentoIdentificacion = "CC";
-        os.numDocumentoIdentificacion = "860002400";
-        os.vrUnitOS = 436737;
-        os.vrServicio = 436737;
-        os.conceptoRecaudo = "03";
-        os.valorPagoModerador = 0;
-        os.numFEVPagoModerador = null;
-        os.consecutivo = 1;
-
-        user.servicios.otrosServicios.add(os);
-        invoice.usuarios.add(user);
-
-        return invoice;
+        NodeList descTexts = (NodeList) xp.evaluate("//cbc:Description/text()", doc, XPathConstants.NODESET);
+        for (int i = 0; i < descTexts.getLength(); i++) {
+            String cdata = descTexts.item(i).getNodeValue().trim();
+            if (cdata.startsWith("<")) {
+                return parseInnerXml(cdata);
+            }
+        }
+        return null;
     }
+    public void writeJson(Object data, String path) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS);
+        mapper.enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT);
+        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(path), data);
+        System.out.println("✅ JSON generado correctamente: " + path);
+    }
+
 }
