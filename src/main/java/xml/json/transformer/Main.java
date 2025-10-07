@@ -12,6 +12,7 @@ import java.io.File;
 
 public class Main {
         public static void main(String[] args) throws Exception {
+
                 // 🧭 Seleccionar archivo XML de entrada
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setDialogTitle("Seleccione el archivo XML de entrada");
@@ -26,7 +27,7 @@ public class Main {
                 String inXml = inputFile.getAbsolutePath();
                 System.out.println("📂 Archivo XML seleccionado: " + inXml);
 
-                // 🗂 Seleccionar carpeta de destino
+                // 🗂 Seleccionar carpeta de salida
                 JFileChooser dirChooser = new JFileChooser();
                 dirChooser.setDialogTitle("Seleccione la carpeta donde guardar los archivos generados");
                 dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -40,50 +41,51 @@ public class Main {
                 String outXml = outputDir.getAbsolutePath() + File.separator + "Modified.xml";
                 String outJson = outputDir.getAbsolutePath() + File.separator + "Output.json";
 
-                // 🧱 Crear adaptadores
+                // 🧩 Crear servicios
                 XmlAdapterService xmlService = new XmlAdapterService();
                 JsonBuilderService jsonService = new JsonBuilderService();
 
-                // 🧩 Leer XML original
+                // 📖 Leer XML original
                 Document originalDoc = xmlService.readXml(inXml);
 
-                // ✅ Extraer el XML embebido del original (antes de aplicar transformaciones)
-                Document embeddedFromOriginal = xmlService.extractEmbeddedXml(originalDoc);
-
-                // ✅ Buscar codPrestador dentro del XML embebido (no del principal)
+                // 🧠 Extraer codPrestador del XML original antes de modificar
                 XPathFactory xpf = XPathFactory.newInstance();
                 XPath xp = xpf.newXPath();
+                // Extraer XML embebido primero
+                Document embeddedXmlForPrestador = xmlService.extractEmbeddedXml(originalDoc);
+
+                // Buscar codPrestador dentro del XML embebido
                 String codPrestador = xp.evaluate(
-                        "normalize-space(//*[local-name()='AdditionalInformation'][*[local-name()='Name' and normalize-space(text())='CODIGO PRESTADOR']]/*[local-name()='Value'])",
-                        embeddedFromOriginal
+                        "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' and normalize-space(text())='CODIGO PRESTADOR']/following-sibling::*[local-name()='Value'][1])",
+                        embeddedXmlForPrestador
                 ).trim();
 
-                // Log de depuración
                 if (codPrestador == null || codPrestador.isBlank()) {
-                        System.err.println("⚠️ No se encontró codPrestador en el XML embebido original.");
+                        System.err.println("⚠️ No se encontró codPrestador en el XML original.");
                 } else {
-                        System.out.println("📦 codPrestador original capturado correctamente: " + codPrestador);
+                        System.out.println("💾 codPrestador original capturado correctamente: " + codPrestador);
                 }
 
-                // 🧩 Crear copia del XML para aplicar transformaciones
+                // 🧩 Crear copia del XML para modificaciones
                 Document modifiedDoc = xmlService.readXml(inXml);
 
-                // ✅ 1. Aplicar transformaciones
-                System.out.println("🛠 Aplicando transformaciones...");
-                xmlService.applyManualTransformations(modifiedDoc);
-
-                // ✅ 2. Extraer XML embebido (para poblar JSON correctamente)
-                Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
-
-                // ✅ 3. Construir JSON dinámico con codPrestador original
+                // ✅ Generar JSON
                 System.out.println("📄 Generando JSON...");
+                Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
                 InvoiceData data = jsonService.buildInvoiceData(originalDoc, embeddedXml, codPrestador);
 
-                // ✅ 4. Guardar resultados
+                // ✅ Obtener fecha del JSON (ingresada por usuario)
+                String fechaSuministro = jsonService.getFechaSuministro();
+
+                // ✅ Aplicar transformaciones usando esa fecha
+                System.out.println("🛠 Aplicando transformaciones...");
+                xmlService.applyManualTransformations(modifiedDoc, fechaSuministro);
+
+                // ✅ Guardar resultados
                 xmlService.writeJson(data, outJson);
                 xmlService.writeXml(modifiedDoc, outXml);
 
-                // ✅ 5. Confirmación visual
+                // ✅ Confirmación visual
                 JOptionPane.showMessageDialog(null,
                         "✅ Proceso completado exitosamente.\n\n" +
                                 "📘 XML modificado: " + outXml + "\n" +

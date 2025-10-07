@@ -6,7 +6,6 @@ import xml.json.transformer.domain.InvoiceData;
 public interface XmlAdapter {
     Document readXml(String path) throws Exception;
     void writeXml(Document doc, String path) throws Exception;
-    void applyManualTransformations(Document doc) throws Exception;
-
-    InvoiceData buildInvoiceData(Document doc);
+    void writeJson(Object data, String path) throws Exception;
+    void applyManualTransformations(Document doc, String fechaSuministro) throws Exception;
 }

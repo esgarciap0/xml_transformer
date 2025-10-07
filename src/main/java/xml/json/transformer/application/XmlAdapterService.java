@@ -1,23 +1,23 @@
 package xml.json.transformer.application;
 
-import xml.json.transformer.domain.InvoiceData;
 import org.w3c.dom.*;
+import xml.json.transformer.infrastructure.XmlAdapter;
+
 import javax.xml.XMLConstants;
 import javax.xml.namespace.NamespaceContext;
-import javax.xml.parsers.*;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.xpath.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class XmlAdapterService implements xml.json.transformer.infrastructure.XmlAdapter{
+public class XmlAdapterService implements XmlAdapter {
 
-    private static String originalCodPrestador = "";
-
-    // Namespaces
     private static final Map<String, String> NS = Map.of(
             "cbc", "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
             "cac", "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
@@ -49,7 +49,17 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
         System.out.println("✅ Archivo XML modificado guardado correctamente: " + path);
     }
 
+    @Override
+    public void writeJson(Object data, String path) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS);
+        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(path), data);
+        System.out.println("✅ JSON generado correctamente: " + path);
+    }
 
+    // ------------------------------------------------------------------
+    // Helper para XPath con namespaces
+    // ------------------------------------------------------------------
     private XPath newXPath() {
         XPathFactory xpf = XPathFactory.newInstance();
         XPath xp = xpf.newXPath();
@@ -58,24 +68,28 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
             public String getNamespaceURI(String prefix) {
                 return NS.getOrDefault(prefix, XMLConstants.NULL_NS_URI);
             }
-            @Override public String getPrefix(String uri) { return null; }
-            @Override public Iterator<String> getPrefixes(String uri) { return null; }
+
+            @Override
+            public String getPrefix(String uri) {
+                return null;
+            }
+
+            @Override
+            public Iterator<String> getPrefixes(String uri) {
+                return null;
+            }
         });
         return xp;
     }
 
     // ------------------------------------------------------------------
-    // Transformaciones según el manual
+    // Transformaciones del manual + paso F dinámico
     // ------------------------------------------------------------------
     @Override
-    public void applyManualTransformations(Document outerDoc) throws Exception {
+    public void applyManualTransformations(Document outerDoc, String fechaSuministro) throws Exception {
         XPath xp = newXPath();
 
-        // 💾 Guardar codPrestador antes de modificar el XML
-        originalCodPrestador = xp.evaluate("string(//*[local-name()='Value'][../*[local-name()='Name']='CODIGO PRESTADOR'])", outerDoc);
-        System.out.println("💾 codPrestador original capturado: " + originalCodPrestador);
-
-        // Buscar todos los textos dentro de <cbc:Description>
+        // Buscar todos los <cbc:Description> que contengan XML embebido
         NodeList descTexts = (NodeList) xp.evaluate("//cbc:Description/text()", outerDoc, XPathConstants.NODESET);
 
         int processed = 0;
@@ -87,19 +101,23 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
             String trimmed = content.trim();
             if (!trimmed.startsWith("<") || !trimmed.contains("<Invoice")) continue;
 
+            // Parsear el XML embebido
             Document innerDoc = parseInnerXml(trimmed);
 
-            // A-H pasos del manual
+            // Aplicar transformaciones del manual (A–E, G–H)
             replaceGroupSchemeName(innerDoc);
             removeUnnamespacedElements(innerDoc, "Id");
             renameCodigoPrestador(innerDoc);
             removeUnnamespacedElements(innerDoc, "TotalesCop");
             replaceCustomizationId(innerDoc);
-            insertInvoicePeriod(innerDoc);
             adjustValueElements(innerDoc);
             truncateCodigoPrestador(innerDoc);
             removeByQualifiedName(innerDoc, "cac:PrepaidPayment");
 
+            // ✅ Paso F: insertar <cac:InvoicePeriod> usando la fecha ingresada
+            insertInvoicePeriod(innerDoc, fechaSuministro);
+
+            // Reescribir el XML embebido modificado
             String newContent = serializeXml(innerDoc);
             newContent = newContent.replaceAll("\\n\\s*\\n", "\n").trim();
 
@@ -110,11 +128,9 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
         System.out.println("✅ applyManualTransformations: XMLs internos procesados: " + processed);
     }
 
-    @Override
-    public InvoiceData buildInvoiceData(Document doc) {
-        return null;
-    }
-
+    // ------------------------------------------------------------------
+    // Métodos de transformación
+    // ------------------------------------------------------------------
     private void replaceGroupSchemeName(Document doc) throws Exception {
         XPath xp = newXPath();
         NodeList nodes = (NodeList) xp.evaluate("//*[local-name()='Group']", doc, XPathConstants.NODESET);
@@ -151,38 +167,6 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
             if ("10".equals(n.getTextContent().trim()))
                 n.setTextContent("SS-SinAporte");
         }
-    }
-
-    private void insertInvoicePeriod(Document doc) throws Exception {
-        XPath xp = newXPath();
-        Node node = (Node) xp.evaluate("(//cbc:UBLVersionID)[1]", doc, XPathConstants.NODE);
-        if (node == null) return;
-
-        Element parent = (Element) node.getParentNode();
-        Element invoicePeriod = doc.createElementNS(NS.get("cac"), "cac:InvoicePeriod");
-
-        String[][] items = {
-                {"cbc:StartDate", "2025-07-01"},
-                {"cbc:StartTime", "00:00:00-05:00"},
-                {"cbc:EndDate", "2025-07-31"},
-                {"cbc:EndTime", "00:00:00-05:00"}
-        };
-
-        for (String[] i : items) {
-            String prefix = i[0].split(":")[0];
-            String local = i[0].split(":")[1];
-            Element e = doc.createElementNS(NS.get(prefix), i[0]);
-            e.setTextContent(i[1]);
-            invoicePeriod.appendChild(e);
-        }
-
-        Node next = node.getNextSibling();
-        while (next != null && next.getNodeType() == Node.TEXT_NODE && next.getTextContent().trim().isEmpty()) {
-            next = next.getNextSibling();
-        }
-
-        if (next != null) parent.insertBefore(invoicePeriod, next);
-        else parent.appendChild(invoicePeriod);
     }
 
     private void adjustValueElements(Document doc) throws Exception {
@@ -226,6 +210,55 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
             n.getParentNode().removeChild(n);
     }
 
+    // ✅ Inserta el bloque dinámico <cac:InvoicePeriod>
+    private void insertInvoicePeriod(Document doc, String fechaSuministro) throws Exception {
+        if (fechaSuministro == null || fechaSuministro.isBlank()) return;
+
+        XPath xp = newXPath();
+        Node node = (Node) xp.evaluate("(//cbc:UBLVersionID)[1]", doc, XPathConstants.NODE);
+        if (node == null) return;
+
+        Element parent = (Element) node.getParentNode();
+        Element invoicePeriod = doc.createElementNS(NS.get("cac"), "cac:InvoicePeriod");
+
+        SimpleDateFormat sdfInput = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(sdfInput.parse(fechaSuministro));
+
+        // StartDate = día anterior
+        cal.add(Calendar.DATE, -1);
+        String startDate = new SimpleDateFormat("yyyy-MM-dd").format(cal.getTime());
+
+        // EndDate = mismo día del suministro
+        cal.add(Calendar.DATE, 1);
+        String endDate = fechaSuministro.substring(0, 10);
+
+        addChild(doc, invoicePeriod, "cbc:StartDate", startDate);
+        addChild(doc, invoicePeriod, "cbc:StartTime", "00:00:00-05:00");
+        addChild(doc, invoicePeriod, "cbc:EndDate", endDate);
+        addChild(doc, invoicePeriod, "cbc:EndTime", "23:59:59-05:00");
+
+        Node next = node.getNextSibling();
+        while (next != null && next.getNodeType() == Node.TEXT_NODE && next.getTextContent().trim().isEmpty()) {
+            next = next.getNextSibling();
+        }
+
+        if (next != null) parent.insertBefore(invoicePeriod, next);
+        else parent.appendChild(invoicePeriod);
+
+        System.out.println("🧩 Bloque <cac:InvoicePeriod> generado usando la fecha " + fechaSuministro);
+    }
+
+    private void addChild(Document doc, Element parent, String tag, String value) {
+        String prefix = tag.split(":")[0];
+        Element e = doc.createElementNS(NS.get(prefix), tag);
+        e.setTextContent(value);
+        parent.appendChild(e);
+    }
+
+    // ------------------------------------------------------------------
+    // Utilidades XML
+    // ------------------------------------------------------------------
     private Document parseInnerXml(String xmlContent) throws Exception {
         String cleaned = xmlContent.replaceFirst("<\\?xml.*?\\?>", "").trim();
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -244,6 +277,10 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
         return writer.toString();
     }
+
+    // ------------------------------------------------------------------
+    // Extraer XML embebido
+    // ------------------------------------------------------------------
     public Document extractEmbeddedXml(Document doc) throws Exception {
         XPath xp = newXPath();
         NodeList descTexts = (NodeList) xp.evaluate("//cbc:Description/text()", doc, XPathConstants.NODESET);
@@ -255,12 +292,4 @@ public class XmlAdapterService implements xml.json.transformer.infrastructure.Xm
         }
         return null;
     }
-    public void writeJson(Object data, String path) throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        mapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS);
-        mapper.enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(path), data);
-        System.out.println("✅ JSON generado correctamente: " + path);
-    }
-
 }
