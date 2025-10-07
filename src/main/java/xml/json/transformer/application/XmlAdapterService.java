@@ -1,14 +1,7 @@
 package xml.json.transformer.application;
 
 import xml.json.transformer.domain.InvoiceData;
-import xml.json.transformer.domain.UserData;
 import org.w3c.dom.*;
-import xml.json.transformer.infrastructure.JsonAdapter;
-<<<<<<<< HEAD:src/main/java/xml/json/transformer/application/XmlAdapterService.java
-========
-import xml.json.transformer.infrastructure.XmlAdapter;
->>>>>>>> origin/main:src/main/java/xml/json/transformer/application/FileSystemAdapter.java
-
 import javax.xml.XMLConstants;
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.parsers.*;
