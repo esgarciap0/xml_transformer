@@ -7,92 +7,104 @@ import xml.json.transformer.domain.InvoiceData;
 
 import javax.swing.*;
 import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
 
 public class Main {
-        public static void main(String[] args) throws Exception {
+        public static void main(String[] args) {
+                try {
+                        // 1) Select input XML
+                        JFileChooser fileChooser = new JFileChooser();
+                        fileChooser.setDialogTitle("Seleccione el archivo XML de entrada");
+                        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML (*.xml)", "xml"));
+                        if (fileChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) {
+                                JOptionPane.showMessageDialog(null, "❌ No se seleccionó ningún archivo. Proceso cancelado.");
+                                return;
+                        }
+                        File inputFile = fileChooser.getSelectedFile();
+                        System.out.println("📂 XML seleccionado: " + inputFile.getAbsolutePath());
 
-                // 🧭 Seleccionar archivo XML de entrada
-                JFileChooser fileChooser = new JFileChooser();
-                fileChooser.setDialogTitle("Seleccione el archivo XML de entrada");
-                fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML (*.xml)", "xml"));
+                        // 2) Services
+                        XmlAdapterService xmlService = new XmlAdapterService();
 
-                if (fileChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) {
-                        JOptionPane.showMessageDialog(null, "❌ No se seleccionó ningún archivo. El proceso ha sido cancelado.");
-                        return;
+                        // 3) Read original XML (outer)
+                        Document originalDoc = xmlService.readXml(inputFile.getAbsolutePath());
+
+                        // 4) Extract IssueDate and ParentDocumentID from outer XML
+                        XPathFactory xpf = XPathFactory.newInstance();
+                        XPath xp = xpf.newXPath();
+
+                        String issueDateStr = (String) xp.evaluate("string(//*[local-name()='IssueDate'][1])",
+                                originalDoc, XPathConstants.STRING);
+                        if (issueDateStr == null || issueDateStr.isBlank()) {
+                                JOptionPane.showMessageDialog(null, "❌ No se encontró <cbc:IssueDate>.", "Error", JOptionPane.ERROR_MESSAGE);
+                                return;
+                        }
+                        LocalDate issueDate = LocalDate.parse(issueDateStr.trim());
+
+                        String factura = (String) xp.evaluate("string(//*[local-name()='ParentDocumentID'][1])",
+                                originalDoc, XPathConstants.STRING);
+                        if (factura == null || factura.isBlank()) {
+                                JOptionPane.showMessageDialog(null, "❌ No se encontró <cbc:ParentDocumentID>.", "Error", JOptionPane.ERROR_MESSAGE);
+                                return;
+                        }
+                        factura = factura.trim();
+
+                        // 5) Compute output dir and filenames: <xml_dir>/<ParentDocumentID>/{Factura}.xml/.json
+                        Path xmlDir = inputFile.getParentFile().toPath();
+                        Path outDir = xmlDir.resolve(factura);
+                        Files.createDirectories(outDir);
+                        String outXml = outDir.resolve(factura + ".xml").toString();
+                        String outJson = outDir.resolve(factura + ".json").toString();
+                        System.out.println("📦 Carpeta destino: " + outDir);
+
+                        // 6) Extract codPrestador from embedded XML (in Description)
+                        Document embeddedXmlForPrestador = xmlService.extractEmbeddedXml(originalDoc);
+                        String codPrestador = xp.evaluate(
+                                "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' and normalize-space(text())='CODIGO PRESTADOR']" +
+                                        "/following-sibling::*[local-name()='Value'][1])",
+                                embeddedXmlForPrestador
+                        ).trim();
+                        if (codPrestador == null || codPrestador.isBlank()) {
+                                System.err.println("⚠️ No se encontró codPrestador en el XML embebido.");
+                        } else {
+                                System.out.println("💾 codPrestador: " + codPrestador);
+                        }
+
+                        // 7) Clone/re-read for modifications
+                        Document modifiedDoc = xmlService.readXml(inputFile.getAbsolutePath());
+
+                        // 8) Build JSON via single questionnaire (validates fecha suministro <= IssueDate)
+                        System.out.println("📄 Generando JSON (cuestionario)...");
+                        Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
+                        JsonBuilderService jsonService = new JsonBuilderService(issueDate);
+                        InvoiceData data = jsonService.buildInvoiceData(originalDoc, embeddedXml, codPrestador);
+
+                        // 9) Fecha suministro (for inner XML transform)
+                        String fechaSuministro = jsonService.getFechaSuministro();
+
+                        // 10) Apply embedded XML transformations (keeps your flow)
+                        System.out.println("🛠 Aplicando transformaciones al XML embebido...");
+                        xmlService.applyManualTransformations(modifiedDoc, fechaSuministro);
+
+                        // 11) Save outputs
+                        xmlService.writeJson(data, outJson);
+                        xmlService.writeXml(modifiedDoc, outXml);
+
+                        JOptionPane.showMessageDialog(null,
+                                "✅ Proceso completado exitosamente.\n\n" +
+                                        "📘 XML modificado: " + outXml + "\n" +
+                                        "📗 JSON generado: " + outJson,
+                                "Proceso finalizado", JOptionPane.INFORMATION_MESSAGE);
+
+                        System.out.println("🏁 Listo.");
+                } catch (Exception e) {
+                        e.printStackTrace();
+                        JOptionPane.showMessageDialog(null, "❌ Error: " + e.getMessage(), "Fallo", JOptionPane.ERROR_MESSAGE);
                 }
-
-                File inputFile = fileChooser.getSelectedFile();
-                String inXml = inputFile.getAbsolutePath();
-                System.out.println("📂 Archivo XML seleccionado: " + inXml);
-
-                // 🗂 Seleccionar carpeta de salida
-                JFileChooser dirChooser = new JFileChooser();
-                dirChooser.setDialogTitle("Seleccione la carpeta donde guardar los archivos generados");
-                dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-
-                if (dirChooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) {
-                        JOptionPane.showMessageDialog(null, "❌ No se seleccionó una carpeta de destino. El proceso ha sido cancelado.");
-                        return;
-                }
-
-                File outputDir = dirChooser.getSelectedFile();
-                String outXml = outputDir.getAbsolutePath() + File.separator + "Modified.xml";
-                String outJson = outputDir.getAbsolutePath() + File.separator + "Output.json";
-
-                // 🧩 Crear servicios
-                XmlAdapterService xmlService = new XmlAdapterService();
-                JsonBuilderService jsonService = new JsonBuilderService();
-
-                // 📖 Leer XML original
-                Document originalDoc = xmlService.readXml(inXml);
-
-                // 🧠 Extraer codPrestador del XML original antes de modificar
-                XPathFactory xpf = XPathFactory.newInstance();
-                XPath xp = xpf.newXPath();
-                // Extraer XML embebido primero
-                Document embeddedXmlForPrestador = xmlService.extractEmbeddedXml(originalDoc);
-
-                // Buscar codPrestador dentro del XML embebido
-                String codPrestador = xp.evaluate(
-                        "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' and normalize-space(text())='CODIGO PRESTADOR']/following-sibling::*[local-name()='Value'][1])",
-                        embeddedXmlForPrestador
-                ).trim();
-
-                if (codPrestador == null || codPrestador.isBlank()) {
-                        System.err.println("⚠️ No se encontró codPrestador en el XML original.");
-                } else {
-                        System.out.println("💾 codPrestador original capturado correctamente: " + codPrestador);
-                }
-
-                // 🧩 Crear copia del XML para modificaciones
-                Document modifiedDoc = xmlService.readXml(inXml);
-
-                // ✅ Generar JSON
-                System.out.println("📄 Generando JSON...");
-                Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
-                InvoiceData data = jsonService.buildInvoiceData(originalDoc, embeddedXml, codPrestador);
-
-                // ✅ Obtener fecha del JSON (ingresada por usuario)
-                String fechaSuministro = jsonService.getFechaSuministro();
-
-                // ✅ Aplicar transformaciones usando esa fecha
-                System.out.println("🛠 Aplicando transformaciones...");
-                xmlService.applyManualTransformations(modifiedDoc, fechaSuministro);
-
-                // ✅ Guardar resultados
-                xmlService.writeJson(data, outJson);
-                xmlService.writeXml(modifiedDoc, outXml);
-
-                // ✅ Confirmación visual
-                JOptionPane.showMessageDialog(null,
-                        "✅ Proceso completado exitosamente.\n\n" +
-                                "📘 XML modificado: " + outXml + "\n" +
-                                "📗 JSON generado: " + outJson,
-                        "Proceso finalizado",
-                        JOptionPane.INFORMATION_MESSAGE);
-
-                System.out.println("🏁 Proceso completado exitosamente.");
         }
 }

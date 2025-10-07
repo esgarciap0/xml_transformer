@@ -236,7 +236,7 @@ public class XmlAdapterService implements XmlAdapter {
         addChild(doc, invoicePeriod, "cbc:StartDate", startDate);
         addChild(doc, invoicePeriod, "cbc:StartTime", "00:00:00-05:00");
         addChild(doc, invoicePeriod, "cbc:EndDate", endDate);
-        addChild(doc, invoicePeriod, "cbc:EndTime", "23:59:59-05:00");
+        addChild(doc, invoicePeriod, "cbc:EndTime", "00:00:00-05:00");
 
         Node next = node.getNextSibling();
         while (next != null && next.getNodeType() == Node.TEXT_NODE && next.getTextContent().trim().isEmpty()) {
