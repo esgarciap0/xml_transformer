@@ -17,8 +17,10 @@ import java.time.*;
 import java.util.*;
 
 /**
- * Builds InvoiceData using ONE questionnaire, keeping field order exactly as JSON structure.
- * Validates fechaSuministroTecnologia <= IssueDate, and separates user vs service document fields.
+ * Builds InvoiceData using ONE questionnaire, keeping field order as the JSON structure.
+ * - Shows a copiable header with the embedded XML <cbc:Note> (cleaned).
+ * - Validates fechaSuministroTecnologia <= IssueDate (outer XML).
+ * - Separates user vs service document fields.
  */
 public class JsonBuilderService {
 
@@ -30,9 +32,8 @@ public class JsonBuilderService {
     );
 
     private final XPath xp;
-    private final LocalDate issueDate;
-    /** yyyy-MM-dd HH:mm kept for XmlAdapterService */
-    private String fechaSuministro;
+    private final LocalDate issueDate;          // from outer XML
+    private String fechaSuministro;             // "yyyy-MM-dd HH:mm" for XmlAdapterService
 
     public JsonBuilderService(LocalDate issueDate) {
         this.issueDate = Objects.requireNonNull(issueDate, "issueDate");
@@ -51,7 +52,7 @@ public class JsonBuilderService {
     }
 
     public InvoiceData buildInvoiceData(Document mainXml, Document embeddedXml, String codPrestador) throws Exception {
-        // ---- Values from XML (to display read-only) ----
+        // ---- Values from XML (display-only in form) ----
         String nitObligado = eval(mainXml, "//cbc:CompanyID[@schemeID='8']");
         String parentDocID = eval(mainXml, "//cbc:ParentDocumentID");
         String numAutorizacion = eval(embeddedXml, "//sts:InvoiceAuthorization");
@@ -60,7 +61,11 @@ public class JsonBuilderService {
         String docIdentObligadoScheme2 = eval(mainXml, "//cbc:CompanyID[@schemeID='2']");
         String lineAmountRaw = eval(embeddedXml, "//cbc:LineExtensionAmount").replaceAll("[^0-9.]", "");
 
-        // ---- Questionnaire in exact JSON order ----
+        // ---- Header from <cbc:Note> (cleaned: remove "Linea de negocio:") ----
+        String noteHeaderRaw = eval(embeddedXml, "//cbc:Note");
+        String noteHeader = noteHeaderRaw.replaceAll("(?i)^\\s*linea\\s+de\\s+negocio\\s*:\\s*", "").trim();
+
+        // ---- Questionnaire (loop until valid dates) ----
         Map<String, Object> ans;
         LocalDate fechaNacimiento;
         LocalDateTime fechaSumLdt;
@@ -68,18 +73,15 @@ public class JsonBuilderService {
         while (true) {
             LinkedHashMap<String, JComponent> fields = new LinkedHashMap<>();
 
-            // 1) Root level, same order:
+            // 1) Root level (order as JSON)
             fields.put("numDocumentoIdObligado (XML schemeID=8)", UiDialogs.ro(nitObligado));
             fields.put("numFactura (ParentDocumentID XML)", UiDialogs.ro(parentDocID));
             fields.put("tipoNota (opcional)", UiDialogs.tx(null));
             fields.put("numNota (opcional)", UiDialogs.tx(null));
 
-            // 2) usuarios[0] object (same order as JSON provided):
-            //    tipoDocumentoIdentificacion, numDocumentoIdentificacion, tipoUsuario, fechaNacimiento, codSexo, codPaisResidencia,
-            //    codMunicipioResidencia, codZonaTerritorialResidencia, incapacidad, codPaisOrigen, consecutivo
+            // 2) usuarios[0] (order as JSON)
             fields.put("tipoDocumentoIdentificacion (usuario)", UiDialogs.cb(Defaults.TIPO_DOC, "CC"));
-            fields.put("numDocumentoIdentificacion (usuario)", UiDialogs.tx(null));
-
+            fields.put("numDocumentoIdentificacion (usuario)", UiDialogs.tx(null)); // editable by user
             fields.put("tipoUsuario", UiDialogs.tx(Defaults.TIPO_USUARIO));
 
             JDateChooser fechaNacChooser = new JDateChooser();
@@ -94,12 +96,7 @@ public class JsonBuilderService {
             fields.put("codPaisOrigen", UiDialogs.tx(Defaults.COD_PAIS_ORIGEN));
             fields.put("consecutivo", UiDialogs.intSpinner(1, 9999, 1, Defaults.CONSECUTIVO));
 
-            // 3) usuarios[0].servicios.otrosServicios[0] (same order):
-            //    codPrestador, numAutorizacion, idMIPRES, fechaSuministroTecnologia, tipoOS,
-            //    codTecnologiaSalud, nomTecnologiaSalud, cantidadOS,
-            //    tipoDocumentoIdentificacion, numDocumentoIdentificacion,
-            //    vrUnitOS, vrServicio, conceptoRecaudo, valorPagoModerador,
-            //    numFEVPagoModerador, consecutivo
+            // 3) usuarios[0].servicios.otrosServicios[0] (order as JSON)
             fields.put("codPrestador (XML/extraído)", UiDialogs.ro(codPrestador));
             fields.put("numAutorizacion (XML)", UiDialogs.ro(numAutorizacion));
             fields.put("idMIPRES (opcional)", UiDialogs.tx(null));
@@ -116,10 +113,9 @@ public class JsonBuilderService {
             fields.put("tipoDocumentoIdentificacion (servicio)", UiDialogs.cb(Defaults.TIPO_DOC, "CC"));
             fields.put("numDocumentoIdentificacion (servicio)", UiDialogs.tx(docIdentObligadoScheme2));
 
-            // vrUnitOS / vrServicio shown read-only if comes from XML; both equal
             int amount = 0;
             if (!lineAmountRaw.isBlank()) {
-                try { amount = (int) Math.floor(Double.parseDouble(lineAmountRaw)); } catch (NumberFormatException ignore) {}
+                try { amount = (int) Math.floor(Double.parseDouble(lineAmountRaw)); } catch (NumberFormatException ignored) {}
             }
             fields.put("vrUnitOS (auto)", UiDialogs.ro(String.valueOf(amount)));
             fields.put("vrServicio (auto)", UiDialogs.ro(String.valueOf(amount)));
@@ -129,10 +125,10 @@ public class JsonBuilderService {
             fields.put("numFEVPagoModerador (opcional)", UiDialogs.tx(null));
             fields.put("consecutivoServicio", UiDialogs.intSpinner(1, 9999, 1, Defaults.CONSECUTIVO));
 
-            ans = UiDialogs.questionnaire("Datos para generar JSON", fields);
+            // Open dialog with header (copiable)
+            ans = UiDialogs.questionnaire("Datos para generar JSON", fields, noteHeader);
             if (ans == null) throw new RuntimeException("Operation cancelled.");
 
-            // Pull dates
             var dNac = (java.util.Date) ans.get("fechaNacimiento (calendario)");
             fechaSumLdt = (java.time.LocalDateTime) ans.get("fechaSuministroTecnologia (fecha+hora)");
             if (dNac == null || fechaSumLdt == null) {
@@ -148,20 +144,19 @@ public class JsonBuilderService {
                         "Fecha inválida", JOptionPane.ERROR_MESSAGE);
                 continue;
             }
-            break; // all good
+            break; // valid inputs
         }
 
-        // ---- Build result respecting JSON structure ----
+        // ---- Build result (respecting JSON structure) ----
         InvoiceData invoice = new InvoiceData();
-        invoice.numDocumentoIdObligado = eval(mainXml, "//cbc:CompanyID[@schemeID='8']"); // same as shown
-        invoice.numFactura = eval(mainXml, "//cbc:ParentDocumentID");
+        invoice.numDocumentoIdObligado = nitObligado;
+        invoice.numFactura = parentDocID;
         invoice.tipoNota = opt(ans.get("tipoNota (opcional)"));
         invoice.numNota = opt(ans.get("numNota (opcional)"));
 
         UserData u = new UserData();
         u.tipoDocumentoIdentificacion = reqStr(ans.get("tipoDocumentoIdentificacion (usuario)"), "tipoDocumentoIdentificacion (usuario)");
         u.numDocumentoIdentificacion  = reqStr(ans.get("numDocumentoIdentificacion (usuario)"),  "numDocumentoIdentificacion (usuario)");
-
         u.tipoUsuario = reqStr(ans.get("tipoUsuario"), "tipoUsuario");
         u.fechaNacimiento = fechaNacimiento.toString();
         u.codSexo = reqStr(ans.get("codSexo"), "codSexo");
@@ -174,15 +169,15 @@ public class JsonBuilderService {
 
         UserData.OtrosServicios os = new UserData.OtrosServicios();
         os.codPrestador = codPrestador;
-        os.numAutorizacion = eval(embeddedXml, "//sts:InvoiceAuthorization");
+        os.numAutorizacion = numAutorizacion;
         os.idMIPRES = opt(ans.get("idMIPRES (opcional)"));
 
         this.fechaSuministro = fechaSumLdt.toString().replace('T', ' ').substring(0, 16);
         os.fechaSuministroTecnologia = this.fechaSuministro;
 
         os.tipoOS = reqStr(ans.get("tipoOS"), "tipoOS");
-        os.codTecnologiaSalud = eval(embeddedXml, "//cac:StandardItemIdentification/cbc:ID");
-        os.nomTecnologiaSalud = eval(embeddedXml, "//cac:Item/cbc:Description");
+        os.codTecnologiaSalud = codTecnologia;
+        os.nomTecnologiaSalud = nomTecnologia;
         os.cantidadOS = (Integer) Objects.requireNonNull(ans.get("cantidadOS"), "cantidadOS");
 
         os.tipoDocumentoIdentificacion = reqStr(ans.get("tipoDocumentoIdentificacion (servicio)"), "tipoDocumentoIdentificacion (servicio)");
@@ -190,7 +185,7 @@ public class JsonBuilderService {
 
         int amount = 0;
         if (!lineAmountRaw.isBlank()) {
-            try { amount = (int) Math.floor(Double.parseDouble(lineAmountRaw)); } catch (NumberFormatException ignore) {}
+            try { amount = (int) Math.floor(Double.parseDouble(lineAmountRaw)); } catch (NumberFormatException ignored) {}
         }
         os.vrUnitOS = amount;
         os.vrServicio = amount;
