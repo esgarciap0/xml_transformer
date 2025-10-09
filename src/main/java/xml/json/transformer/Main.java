@@ -9,23 +9,32 @@ import javax.swing.*;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
+import java.awt.Desktop;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.prefs.Preferences;
 
 public class Main {
         public static void main(String[] args) {
                 try {
+                        // Preferencias para recordar la última carpeta usada
+                        Preferences prefs = Preferences.userNodeForPackage(Main.class);
+                        String lastDir = prefs.get("lastDir", System.getProperty("user.home"));
+
                         // 1) Select input XML
                         JFileChooser fileChooser = new JFileChooser();
                         fileChooser.setDialogTitle("Seleccione el archivo XML de entrada");
                         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML (*.xml)", "xml"));
+                        fileChooser.setCurrentDirectory(new File(lastDir)); // ← última carpeta
                         if (fileChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) {
                                 JOptionPane.showMessageDialog(null, "❌ No se seleccionó ningún archivo. Proceso cancelado.");
                                 return;
                         }
                         File inputFile = fileChooser.getSelectedFile();
+                        // Guardar carpeta para próximas ejecuciones
+                        prefs.put("lastDir", inputFile.getParent());
                         System.out.println("📂 XML seleccionado: " + inputFile.getAbsolutePath());
 
                         // 2) Services
@@ -65,7 +74,8 @@ public class Main {
                         // 6) Extract codPrestador from embedded XML (in Description)
                         Document embeddedXmlForPrestador = xmlService.extractEmbeddedXml(originalDoc);
                         String codPrestador = xp.evaluate(
-                                "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' and normalize-space(text())='CODIGO PRESTADOR']" +
+                                "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' and " +
+                                        "(normalize-space(text())='CODIGO PRESTADOR' or normalize-space(text())='CODIGO_PRESTADOR')]" +
                                         "/following-sibling::*[local-name()='Value'][1])",
                                 embeddedXmlForPrestador
                         ).trim();
@@ -78,11 +88,15 @@ public class Main {
                         // 7) Clone/re-read for modifications
                         Document modifiedDoc = xmlService.readXml(inputFile.getAbsolutePath());
 
-                        // 8) Build JSON via single questionnaire (validates fecha suministro <= IssueDate)
+                        // 8) Build JSON via single questionnaire (validaciones internas con loop)
                         System.out.println("📄 Generando JSON (cuestionario)...");
                         Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
                         JsonBuilderService jsonService = new JsonBuilderService(issueDate);
                         InvoiceData data = jsonService.buildInvoiceData(originalDoc, embeddedXml, codPrestador);
+                        if (data == null) {
+                                System.out.println("⛔ Operación cancelada por el usuario.");
+                                return;
+                        }
 
                         // 9) Fecha suministro (for inner XML transform)
                         String fechaSuministro = jsonService.getFechaSuministro();
@@ -100,6 +114,14 @@ public class Main {
                                         "📘 XML modificado: " + outXml + "\n" +
                                         "📗 JSON generado: " + outJson,
                                 "Proceso finalizado", JOptionPane.INFORMATION_MESSAGE);
+
+                        // 12) Abrir la carpeta de salida y recordar como lastDir
+                        try {
+                                if (Desktop.isDesktopSupported()) {
+                                        Desktop.getDesktop().open(outDir.toFile());
+                                }
+                        } catch (Exception ignore) {}
+                        prefs.put("lastDir", outDir.toString());
 
                         System.out.println("🏁 Listo.");
                 } catch (Exception e) {
