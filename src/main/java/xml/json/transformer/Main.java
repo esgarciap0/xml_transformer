@@ -4,6 +4,7 @@ import org.w3c.dom.Document;
 import xml.json.transformer.application.JsonBuilderService;
 import xml.json.transformer.application.XmlAdapterService;
 import xml.json.transformer.domain.InvoiceData;
+import xml.json.transformer.licensing.ActivationGate;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -11,9 +12,9 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 import java.awt.*;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -24,7 +25,7 @@ import java.util.prefs.Preferences;
 public class Main {
 
         private static List<Image> loadAppIcons() {
-                String[] sizes = {"16","32","48","128","256"};
+                String[] sizes = {"16", "32", "48", "128", "256"};
                 List<Image> imgs = new ArrayList<>();
                 for (String sz : sizes) {
                         String path = "/app-" + sz + ".png";
@@ -36,14 +37,13 @@ public class Main {
         }
 
         public static void main(String[] args) {
-                // Look & Feel nativo (opcional)
                 try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignore) {}
 
-                // ===== Ventana raíz (para barra de tareas + parenting de diálogos) =====
                 JFrame app = new JFrame("XML Transformer");
                 app.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                app.setSize(460, 280);
+                app.setSize(520, 300);
                 app.setLocationByPlatform(true);
+
                 List<Image> icons = loadAppIcons();
                 if (!icons.isEmpty()) {
                         app.setIconImages(icons);
@@ -52,24 +52,40 @@ public class Main {
                         }
                 }
 
-                // Una portada mínima (opcional)
-                JPanel panel = new JPanel(new BorderLayout());
                 JLabel title = new JLabel("XML Transformer", SwingConstants.CENTER);
                 title.setFont(title.getFont().deriveFont(Font.BOLD, 20f));
-                panel.add(title, BorderLayout.NORTH);
-                JLabel hint = new JLabel("Haz clic en \"Iniciar\" para seleccionar un XML.", SwingConstants.CENTER);
-                panel.add(hint, BorderLayout.CENTER);
+                JLabel hint = new JLabel("Activa tu licencia y luego haz clic en \"Iniciar\".", SwingConstants.CENTER);
                 JButton startBtn = new JButton("Iniciar");
+                startBtn.setEnabled(false); // ← bloqueado hasta activar
+
+                JPanel root = new JPanel(new BorderLayout());
+                root.add(title, BorderLayout.NORTH);
+                root.add(hint, BorderLayout.CENTER);
                 JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
                 south.add(startBtn);
-                panel.add(south, BorderLayout.SOUTH);
-                app.setContentPane(panel);
-                app.setVisible(true); // ← hace que Windows muestre el botón en la barra
+                root.add(south, BorderLayout.SOUTH);
+                app.setContentPane(root);
+                app.setVisible(true);
 
-                // Acción principal (también ejecutamos de una si quieres)
-                startBtn.addActionListener(e -> runFlow(app));
-                // Ejecutar automáticamente al abrir:
-                SwingUtilities.invokeLater(() -> startBtn.doClick());
+                // 1) Gate de activación SIN permitir continuar si falla
+                boolean activated = ActivationGate.ensureActivated(app);
+                startBtn.setEnabled(activated);
+                if (!activated) {
+                        JOptionPane.showMessageDialog(app,
+                                "La aplicación requiere una licencia válida para continuar.",
+                                "Licencia requerida", JOptionPane.INFORMATION_MESSAGE);
+                }
+
+                // 2) Aun así, re-chequea antes de correr
+                startBtn.addActionListener(e -> {
+                        if (!ActivationGate.ensureActivated(app)) {
+                                JOptionPane.showMessageDialog(app,
+                                        "Licencia inválida o ausente. Importe una licencia válida.",
+                                        "Licencia", JOptionPane.WARNING_MESSAGE);
+                                return;
+                        }
+                        runFlow(app);
+                });
         }
 
         private static void runFlow(JFrame app) {
@@ -77,27 +93,21 @@ public class Main {
                         Preferences prefs = Preferences.userNodeForPackage(Main.class);
                         String lastDir = prefs.get("lastDir", System.getProperty("user.home"));
 
-                        // 1) Select input XML (anclado a app)
-                        JFileChooser fileChooser = new JFileChooser();
-                        fileChooser.setDialogTitle("Seleccione el archivo XML de entrada");
-                        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML (*.xml)", "xml"));
-                        fileChooser.setCurrentDirectory(new File(lastDir));
-
-                        if (fileChooser.showOpenDialog(app) != JFileChooser.APPROVE_OPTION) {
+                        JFileChooser fc = new JFileChooser();
+                        fc.setDialogTitle("Seleccione el archivo XML de entrada");
+                        fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML (*.xml)", "xml"));
+                        fc.setCurrentDirectory(new File(lastDir));
+                        if (fc.showOpenDialog(app) != JFileChooser.APPROVE_OPTION) {
                                 JOptionPane.showMessageDialog(app, "❌ No se seleccionó ningún archivo. Proceso cancelado.");
                                 return;
                         }
-                        File inputFile = fileChooser.getSelectedFile();
+                        File inputFile = fc.getSelectedFile();
                         prefs.put("lastDir", inputFile.getParent());
                         System.out.println("📂 XML seleccionado: " + inputFile.getAbsolutePath());
 
-                        // 2) Services
                         XmlAdapterService xmlService = new XmlAdapterService();
-
-                        // 3) Read original XML (outer)
                         Document originalDoc = xmlService.readXml(inputFile.getAbsolutePath());
 
-                        // 4) Extract IssueDate and ParentDocumentID from outer XML
                         XPathFactory xpf = XPathFactory.newInstance();
                         XPath xp = xpf.newXPath();
 
@@ -117,7 +127,6 @@ public class Main {
                         }
                         factura = factura.trim();
 
-                        // 5) Compute output dir and filenames: <xml_dir>/<ParentDocumentID>/{Factura}.xml/.json
                         Path xmlDir = inputFile.getParentFile().toPath();
                         Path outDir = xmlDir.resolve(factura);
                         Files.createDirectories(outDir);
@@ -125,7 +134,6 @@ public class Main {
                         String outJson = outDir.resolve(factura + ".json").toString();
                         System.out.println("📦 Carpeta destino: " + outDir);
 
-                        // 6) Extract codPrestador from embedded XML (in Description)
                         Document embeddedXmlForPrestador = xmlService.extractEmbeddedXml(originalDoc);
                         String codPrestador = xp.evaluate(
                                 "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' and " +
@@ -139,10 +147,8 @@ public class Main {
                                 System.out.println("💾 codPrestador: " + codPrestador);
                         }
 
-                        // 7) Clone/re-read for modifications
                         Document modifiedDoc = xmlService.readXml(inputFile.getAbsolutePath());
 
-                        // 8) Build JSON via questionnaire (validaciones con loop)
                         System.out.println("📄 Generando JSON (cuestionario)...");
                         Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
                         JsonBuilderService jsonService = new JsonBuilderService(issueDate);
@@ -152,14 +158,11 @@ public class Main {
                                 return;
                         }
 
-                        // 9) Fecha suministro (for inner XML transform)
                         String fechaSuministro = jsonService.getFechaSuministro();
 
-                        // 10) Apply embedded XML transformations
                         System.out.println("🛠 Aplicando transformaciones al XML embebido...");
                         xmlService.applyManualTransformations(modifiedDoc, fechaSuministro);
 
-                        // 11) Save outputs
                         xmlService.writeJson(data, outJson);
                         xmlService.writeXml(modifiedDoc, outXml);
 
@@ -169,16 +172,10 @@ public class Main {
                                         "📗 JSON generado: " + outJson,
                                 "Proceso finalizado", JOptionPane.INFORMATION_MESSAGE);
 
-                        // 12) Abrir la carpeta de salida y recordar como lastDir
-                        try {
-                                if (Desktop.isDesktopSupported()) {
-                                        Desktop.getDesktop().open(outDir.toFile());
-                                }
-                        } catch (Exception ignore) {}
+                        try { if (Desktop.isDesktopSupported()) Desktop.getDesktop().open(outDir.toFile()); } catch (Exception ignore) {}
                         prefs.put("lastDir", outDir.toString());
 
                         System.out.println("🏁 Listo.");
-
                 } catch (Exception e) {
                         e.printStackTrace();
                         JOptionPane.showMessageDialog(app, "❌ Error: " + e.getMessage(), "Fallo", JOptionPane.ERROR_MESSAGE);
