@@ -5,35 +5,89 @@ import xml.json.transformer.application.JsonBuilderService;
 import xml.json.transformer.application.XmlAdapterService;
 import xml.json.transformer.domain.InvoiceData;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
-import java.awt.Desktop;
+import java.awt.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.prefs.Preferences;
 
 public class Main {
+
+        private static List<Image> loadAppIcons() {
+                String[] sizes = {"16","32","48","128","256"};
+                List<Image> imgs = new ArrayList<>();
+                for (String sz : sizes) {
+                        String path = "/app-" + sz + ".png";
+                        try (InputStream in = Main.class.getResourceAsStream(path)) {
+                                if (in != null) imgs.add(ImageIO.read(in));
+                        } catch (IOException ignored) {}
+                }
+                return imgs;
+        }
+
         public static void main(String[] args) {
+                // Look & Feel nativo (opcional)
+                try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignore) {}
+
+                // ===== Ventana raíz (para barra de tareas + parenting de diálogos) =====
+                JFrame app = new JFrame("XML Transformer");
+                app.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                app.setSize(460, 280);
+                app.setLocationByPlatform(true);
+                List<Image> icons = loadAppIcons();
+                if (!icons.isEmpty()) {
+                        app.setIconImages(icons);
+                        if (Taskbar.isTaskbarSupported()) {
+                                try { Taskbar.getTaskbar().setIconImage(icons.get(Math.min(1, icons.size()-1))); } catch (Exception ignore) {}
+                        }
+                }
+
+                // Una portada mínima (opcional)
+                JPanel panel = new JPanel(new BorderLayout());
+                JLabel title = new JLabel("XML Transformer", SwingConstants.CENTER);
+                title.setFont(title.getFont().deriveFont(Font.BOLD, 20f));
+                panel.add(title, BorderLayout.NORTH);
+                JLabel hint = new JLabel("Haz clic en \"Iniciar\" para seleccionar un XML.", SwingConstants.CENTER);
+                panel.add(hint, BorderLayout.CENTER);
+                JButton startBtn = new JButton("Iniciar");
+                JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
+                south.add(startBtn);
+                panel.add(south, BorderLayout.SOUTH);
+                app.setContentPane(panel);
+                app.setVisible(true); // ← hace que Windows muestre el botón en la barra
+
+                // Acción principal (también ejecutamos de una si quieres)
+                startBtn.addActionListener(e -> runFlow(app));
+                // Ejecutar automáticamente al abrir:
+                SwingUtilities.invokeLater(() -> startBtn.doClick());
+        }
+
+        private static void runFlow(JFrame app) {
                 try {
-                        // Preferencias para recordar la última carpeta usada
                         Preferences prefs = Preferences.userNodeForPackage(Main.class);
                         String lastDir = prefs.get("lastDir", System.getProperty("user.home"));
 
-                        // 1) Select input XML
+                        // 1) Select input XML (anclado a app)
                         JFileChooser fileChooser = new JFileChooser();
                         fileChooser.setDialogTitle("Seleccione el archivo XML de entrada");
                         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML (*.xml)", "xml"));
-                        fileChooser.setCurrentDirectory(new File(lastDir)); // ← última carpeta
-                        if (fileChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) {
-                                JOptionPane.showMessageDialog(null, "❌ No se seleccionó ningún archivo. Proceso cancelado.");
+                        fileChooser.setCurrentDirectory(new File(lastDir));
+
+                        if (fileChooser.showOpenDialog(app) != JFileChooser.APPROVE_OPTION) {
+                                JOptionPane.showMessageDialog(app, "❌ No se seleccionó ningún archivo. Proceso cancelado.");
                                 return;
                         }
                         File inputFile = fileChooser.getSelectedFile();
-                        // Guardar carpeta para próximas ejecuciones
                         prefs.put("lastDir", inputFile.getParent());
                         System.out.println("📂 XML seleccionado: " + inputFile.getAbsolutePath());
 
@@ -50,7 +104,7 @@ public class Main {
                         String issueDateStr = (String) xp.evaluate("string(//*[local-name()='IssueDate'][1])",
                                 originalDoc, XPathConstants.STRING);
                         if (issueDateStr == null || issueDateStr.isBlank()) {
-                                JOptionPane.showMessageDialog(null, "❌ No se encontró <cbc:IssueDate>.", "Error", JOptionPane.ERROR_MESSAGE);
+                                JOptionPane.showMessageDialog(app, "❌ No se encontró <cbc:IssueDate>.", "Error", JOptionPane.ERROR_MESSAGE);
                                 return;
                         }
                         LocalDate issueDate = LocalDate.parse(issueDateStr.trim());
@@ -58,7 +112,7 @@ public class Main {
                         String factura = (String) xp.evaluate("string(//*[local-name()='ParentDocumentID'][1])",
                                 originalDoc, XPathConstants.STRING);
                         if (factura == null || factura.isBlank()) {
-                                JOptionPane.showMessageDialog(null, "❌ No se encontró <cbc:ParentDocumentID>.", "Error", JOptionPane.ERROR_MESSAGE);
+                                JOptionPane.showMessageDialog(app, "❌ No se encontró <cbc:ParentDocumentID>.", "Error", JOptionPane.ERROR_MESSAGE);
                                 return;
                         }
                         factura = factura.trim();
@@ -88,7 +142,7 @@ public class Main {
                         // 7) Clone/re-read for modifications
                         Document modifiedDoc = xmlService.readXml(inputFile.getAbsolutePath());
 
-                        // 8) Build JSON via single questionnaire (validaciones internas con loop)
+                        // 8) Build JSON via questionnaire (validaciones con loop)
                         System.out.println("📄 Generando JSON (cuestionario)...");
                         Document embeddedXml = xmlService.extractEmbeddedXml(modifiedDoc);
                         JsonBuilderService jsonService = new JsonBuilderService(issueDate);
@@ -101,7 +155,7 @@ public class Main {
                         // 9) Fecha suministro (for inner XML transform)
                         String fechaSuministro = jsonService.getFechaSuministro();
 
-                        // 10) Apply embedded XML transformations (keeps your flow)
+                        // 10) Apply embedded XML transformations
                         System.out.println("🛠 Aplicando transformaciones al XML embebido...");
                         xmlService.applyManualTransformations(modifiedDoc, fechaSuministro);
 
@@ -109,7 +163,7 @@ public class Main {
                         xmlService.writeJson(data, outJson);
                         xmlService.writeXml(modifiedDoc, outXml);
 
-                        JOptionPane.showMessageDialog(null,
+                        JOptionPane.showMessageDialog(app,
                                 "✅ Proceso completado exitosamente.\n\n" +
                                         "📘 XML modificado: " + outXml + "\n" +
                                         "📗 JSON generado: " + outJson,
@@ -124,9 +178,10 @@ public class Main {
                         prefs.put("lastDir", outDir.toString());
 
                         System.out.println("🏁 Listo.");
+
                 } catch (Exception e) {
                         e.printStackTrace();
-                        JOptionPane.showMessageDialog(null, "❌ Error: " + e.getMessage(), "Fallo", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(app, "❌ Error: " + e.getMessage(), "Fallo", JOptionPane.ERROR_MESSAGE);
                 }
         }
 }
