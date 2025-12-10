@@ -16,15 +16,15 @@ public class LicenseVerifier {
 
     // Reemplaza por tu clave pública real (PEM X.509 SubjectPublicKeyInfo)
     private static final String PUBLIC_KEY_PEM = """
-        -----BEGIN PUBLIC KEY-----
-                    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv6owNh5Y239sxIvlZknv
-                    yj/ZYSuqZNxBbIwlwsRJXhghI95o+sGCYXbLkw9yzltDhkgp3qa5GmwKPnnF0YK6
-                    psqcH/ZPiJL6Z0iecWFAe2yoCr/0FJr8+iAoLRLwYjALWRCQCuuXp5If6cBUvvIi
-                    vbkNAVirKkcgs7US2l8zxmWgByHd1CPKLHVlJRGTvur8dFm8tmtySk4Ixi0sr2Ap
-                    gx1gBVx9E3YW0SHxEDiKPeznRkJ6M0ROlOKsh8/3UIFkhG24D0GI4ZWA5hYzPtCc
-                    BtoNtr6mMPo1OsoS/ZOdrrHbcXVmV7IHoBLEefoWdUUEwf9SeEaOh09tdWqtKwAx
-                    VwIDAQAB
-                    -----END PUBLIC KEY-----""";
+            -----BEGIN PUBLIC KEY-----
+            MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1ufXn30XT8wGFTuXOi9u
+            femk1svTvVa4a6BrUr825GznNZtX9b6l+Mw1usBfpzEF/+xjVP4zxoCY6g6Eedl2
+            aI2QLIZTKOTxLWNymyb+Wr9zdFSc5c2YaOo7tFepr7+1bcYt+keREdEIJLRbmy7E
+            TeHPgv7g9J8mexzBtnhAKyBz3miiSsrh3Ke+xHuxQTAzPxAcs+ketGFcnIYe3E3N
+            wqlESztmrniCQBV1dPTINDd4Qv1CLDXpeNVzkqOnNkCjmo106jLr9jR0HF6j3Hox
+            15tDiFoj0/7qG1FVJCgAd7boIXYrppkc6rm/i9E0A1NPDYaDqJ1YCR8q5YRzvSPa
+            IwIDAQAB
+            -----END PUBLIC KEY-----""";
 
     private final ObjectMapper om = new ObjectMapper();
     private final PublicKey publicKey;

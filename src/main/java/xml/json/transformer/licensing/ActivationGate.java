@@ -5,6 +5,30 @@ import static xml.json.transformer.licensing.FingerprintServiceWin.*;
 
 public class ActivationGate {
 
+    public static boolean isAlreadyActivated() {
+        try {
+            // 1. Cargar licencia si existe en disco
+            LicenseModels.LicenseFile lic = LicenseStorage.loadEncryptedOrNull();
+            if (lic == null) return false;
+
+            // 2. Obtener DeviceId local correcto
+            FingerprintServiceWin.Components c = FingerprintServiceWin.collect();
+            String deviceId = FingerprintServiceWin.computeDeviceId(c);
+
+            if (deviceId == null || deviceId.isBlank()) return false;
+
+            // 3. Validar la licencia
+            LicenseVerifier verifier = new LicenseVerifier();
+            String error = verifier.verify(lic, deviceId);
+
+            // licencia válida si error == null
+            return error == null;
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** Devuelve true si la app puede continuar. */
     public static boolean ensureActivated(JFrame appOwner) {
         try {

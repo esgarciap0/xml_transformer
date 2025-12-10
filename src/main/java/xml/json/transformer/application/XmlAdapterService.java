@@ -176,7 +176,7 @@ public class XmlAdapterService implements XmlAdapter {
             Element v = (Element) values.item(i);
             String text = v.getTextContent().trim();
             if (text.equalsIgnoreCase("Cobertura Póliza SOAT")) {
-                v.setAttribute("schemeID", "10");
+                v.setAttribute("schemeID", "04");
                 v.setAttribute("schemeName", "salud_cobertuta.gc");
             } else if (text.equalsIgnoreCase("Pago por evento")) {
                 v.setAttribute("schemeID", "04");

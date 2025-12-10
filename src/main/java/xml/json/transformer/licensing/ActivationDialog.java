@@ -24,13 +24,9 @@ public class ActivationDialog extends JDialog {
         this.deviceId = FingerprintServiceWin.computeDeviceId(comps);
 
         JTextArea ta = new JTextArea(
-                "Huella del equipo (deviceId):\n" + deviceId +
-                        "\n\nComponentes:\n" +
-                        "UUID: " + comps.uuid + "\n" +
-                        "BaseBoard: " + comps.baseBoard + "\n" +
-                        "BIOS: " + comps.bios + "\n" +
-                        "Disk: " + comps.disk + "\n\n" +
-                        "Envíe este deviceId al proveedor para recibir su licencia.\n"
+                "Huella del equipo:\n" + deviceId +
+                        "\n\nEnvíe esta huella del equipo al proveedor para recibir su licencia.\n"
+
         );
         ta.setEditable(false);
         ta.setLineWrap(true);
