@@ -216,8 +216,10 @@ public class JsonFormUI {
         frame.add(split, BorderLayout.CENTER);
 
         JPanel southButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton btnBack = new JButton("Atrás");
         JButton btnOk = new JButton("Generar JSON");
         JButton btnCancel = new JButton("Cancelar");
+        southButtons.add(btnBack);
         southButtons.add(btnOk);
         southButtons.add(btnCancel);
         frame.add(southButtons, BorderLayout.SOUTH);
@@ -244,6 +246,10 @@ public class JsonFormUI {
 
         btnCancel.addActionListener(e -> {
             result[0] = null;
+            frame.dispose();
+        });
+        btnBack.addActionListener(e -> {
+            result[0] = FormInput.BACK; // señal especial
             frame.dispose();
         });
 

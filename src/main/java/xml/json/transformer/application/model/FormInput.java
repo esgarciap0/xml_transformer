@@ -35,4 +35,6 @@ public class FormInput {
 
     public Date fechaSum;
     public String fechaSumStr;
+    public static final FormInput BACK = new FormInput();
+
 }

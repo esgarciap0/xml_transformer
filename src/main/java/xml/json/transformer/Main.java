@@ -143,6 +143,11 @@ public class Main {
 
                         if (input == null) return;
 
+                        if (input == FormInput.BACK) {
+                                runFlow(); // vuelve a seleccionar XML
+                                return;
+                        }
+
                         JsonBuilderService builder = new JsonBuilderService(issueDate);
                         InvoiceData data = builder.buildInvoiceData(
                                 input, nitObligado, factura, codPrestador, numAutorizacion
