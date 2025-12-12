@@ -8,13 +8,13 @@ import xml.json.transformer.application.ui.JsonFormUI;
 import xml.json.transformer.domain.InvoiceData;
 import xml.json.transformer.licensing.ActivationGate;
 import xml.json.transformer.ui.AppIcon;
-
 import javax.swing.*;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathFactory;
 import java.awt.*;
 import java.io.File;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -24,30 +24,23 @@ public class Main {
 
         public static void main(String[] args) {
 
-                try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); }
-                catch (Exception ignore) {}
+                try {
+                        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                } catch (Exception ignore) {}
 
-                // ============================================================
-                // 1️⃣ Verificar si ya existe licencia almacenada
-                // ============================================================
-                boolean alreadyActivated = ActivationGate.isAlreadyActivated();
+                // iconos en JOptionPane
+                AppIcon.installAsDefaultIcon();
 
-                if (alreadyActivated) {
-                        // Licencia válida → ir directo al flujo
+                // 1️⃣ validar licencia
+                if (ActivationGate.isAlreadyActivated()) {
                         runFlow();
                         return;
                 }
 
-                // ============================================================
-                // 2️⃣ No hay licencia → mostrar ventana principal (imagen 2)
-                // ============================================================
+                // 2️⃣ mostrar ventana de bienvenida
                 showInitialWindow();
         }
 
-
-        // ============================================================
-        // VENTANA PRINCIPAL QUE QUIERES MOSTRAR (IMAGEN 2)
-        // ============================================================
         private static void showInitialWindow() {
 
                 JFrame app = new JFrame("XML Transformer");
@@ -83,10 +76,9 @@ public class Main {
                 });
         }
 
-
-        // ============================================================
-        // FLUJO PRINCIPAL (lector XML → formulario JSON → salida)
-        // ============================================================
+        // ======================================================================
+        // PROCESO PRINCIPAL
+        // ======================================================================
         private static void runFlow() {
                 try {
 
@@ -118,8 +110,8 @@ public class Main {
 
                         String codPrestador = xp.evaluate(
                                 "string(//*[local-name()='AdditionalInformation']/*[local-name()='Name' " +
-                                        "and (normalize-space(text())='CODIGO PRESTADOR' or normalize-space(text())='CODIGO_PRESTADOR')]" +
-                                        "/following-sibling::*[local-name()='Value'][1])",
+                                        "and (normalize-space(text())='CODIGO PRESTADOR' or normalize-space(text())='CODIGO_PRESTADOR')]/" +
+                                        "following-sibling::*[local-name()='Value'][1])",
                                 embeddedXml).trim();
 
                         String numAutorizacion = xp.evaluate("string(//*[local-name()='InvoiceAuthorization'][1])", embeddedXml).trim();
@@ -172,22 +164,64 @@ public class Main {
                 }
         }
 
-        // ============================================================
-        // SELECTOR XML CON ICONO
-        // ============================================================
+        // ======================================================================
+        // SELECTOR XML — FIX PARA QUE NO SE VEA EN BLANCO EN .EXE
+        // ======================================================================
         private static File showXmlChooser(String lastDir) {
-
                 JFileChooser fc = new JFileChooser();
                 fc.setCurrentDirectory(new File(lastDir));
                 fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML", "xml"));
 
-                JDialog dialog = new JDialog();
-                AppIcon.applyTo(dialog);
-                dialog.setTitle("Seleccione el archivo XML");
-                dialog.setModal(true);
+                AtomicReference<File> selected = new AtomicReference<>(null);
+                CountDownLatch latch = new CountDownLatch(1);
 
-                int res = fc.showOpenDialog(dialog);
-                if (res == JFileChooser.APPROVE_OPTION) return fc.getSelectedFile();
-                return null;
+                SwingUtilities.invokeLater(() -> {
+                        JFrame frame = new JFrame("Seleccione el XML de entrada");
+                        AppIcon.applyTo(frame);
+
+                        // Ensure it behaves like a normal window (taskbar + min/max)
+                        frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+                        frame.setLayout(new BorderLayout());
+                        frame.setMinimumSize(new Dimension(900, 600));
+                        frame.setResizable(true);
+
+                        // Optional: make the chooser feel more direct
+                        fc.setApproveButtonText("Seleccionar");
+
+                        frame.add(fc, BorderLayout.CENTER);
+
+                        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                        JButton ok = new JButton("Seleccionar");
+                        JButton cancel = new JButton("Cancelar");
+                        south.add(ok);
+                        south.add(cancel);
+                        frame.add(south, BorderLayout.SOUTH);
+
+                        ok.addActionListener(e -> {
+                                selected.set(fc.getSelectedFile());
+                                frame.dispose();
+                        });
+
+                        cancel.addActionListener(e -> frame.dispose());
+
+                        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                                @Override public void windowClosed(java.awt.event.WindowEvent e) {
+                                        latch.countDown();
+                                }
+                        });
+
+                        frame.pack();
+                        frame.setLocationRelativeTo(null);
+                        frame.setVisible(true);
+                });
+
+                try {
+                        latch.await(); // Wait until the window closes (not on EDT)
+                } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                }
+
+                return selected.get();
         }
+
 }

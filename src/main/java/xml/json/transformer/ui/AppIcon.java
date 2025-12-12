@@ -1,13 +1,15 @@
 package xml.json.transformer.ui;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AppIcon {
 
-    // Carga todas las resoluciones disponibles
     private static final List<Image> ICONS = loadIcons();
 
     private static List<Image> loadIcons() {
@@ -15,24 +17,29 @@ public class AppIcon {
         String[] sizes = {"16", "32", "48", "128", "256"};
 
         for (String s : sizes) {
-            try {
-                Image img = Toolkit.getDefaultToolkit().getImage(
-                        AppIcon.class.getResource("/app-" + s + ".png")
-                );
-                list.add(img);
-            } catch (Exception ignored) {}
+            String path = "/app-" + s + ".png";
+            try (InputStream is = AppIcon.class.getResourceAsStream(path)) {
+                if (is != null) {
+                    Image img = ImageIO.read(is);  // ← Carga REAL
+                    list.add(img);
+                } else {
+                    System.out.println("No encontrado: " + path);
+                }
+            } catch (IOException e) {
+                System.out.println("Error cargando icono: " + path + " - " + e.getMessage());
+            }
         }
         return list;
     }
 
-    /** Aplica los iconos a cualquier ventana Swing */
+    /** Aplica iconos a ventanas Swing */
     public static void applyTo(Window w) {
-        if (w != null && ICONS != null && !ICONS.isEmpty()) {
+        if (w != null && !ICONS.isEmpty()) {
             w.setIconImages(ICONS);
         }
     }
 
-    /** Fuerza a todos los JOptionPane y diálogos internos a usar icono */
+    /** Icono por defecto para JOptionPane */
     public static void installAsDefaultIcon() {
         if (ICONS.isEmpty()) return;
 

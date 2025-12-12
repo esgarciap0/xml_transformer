@@ -49,24 +49,17 @@ public class JsonFormUI {
         int dValorPagoMod = 0;
         int dConsecServ = 1;
 
-        // --- Header fields ---
         JTextField tfNit = ro(nit);
         JTextField tfFactura = ro(factura);
-
         JTextField tfTipoNota = new JTextField();
         JTextField tfNumNota = new JTextField();
-
-        JComboBox<String> cbUserTipoDoc =
-                new JComboBox<>(new String[]{"CC","CE","TI","PA","RC","NIT","DNI","PS"});
+        JComboBox<String> cbUserTipoDoc = new JComboBox<>(new String[]{"CC","CE","TI","PA","RC","NIT","DNI","PS"});
         cbUserTipoDoc.setSelectedItem("CC");
-
         JTextField tfUserNumDoc = new JTextField();
-
         JTextField tfTipoUsuario = new JTextField(dTipoUsuario);
 
         JDateChooser dcNacimiento = new JDateChooser();
         dcNacimiento.setDateFormatString("yyyy-MM-dd");
-        // prevent future dates
         Calendar limNac = Calendar.getInstance();
         limNac.set(Calendar.HOUR_OF_DAY, 0);
         limNac.set(Calendar.MINUTE, 0);
@@ -81,20 +74,16 @@ public class JsonFormUI {
         JTextField tfMun = new JTextField(dMun);
         JTextField tfZona = new JTextField(dZona);
 
-        JComboBox<String> cbIncap =
-                new JComboBox<>(new String[]{"NO","SI"});
+        JComboBox<String> cbIncap = new JComboBox<>(new String[]{"NO","SI"});
         cbIncap.setSelectedItem(dIncap);
 
         JTextField tfPaisOrigen = new JTextField(dPaisOrigen);
-        JSpinner spConsecUser = new JSpinner(
-                new SpinnerNumberModel(dConsecUser, 1, 9999, 1));
+        JSpinner spConsecUser = new JSpinner(new SpinnerNumberModel(dConsecUser, 1, 9999, 1));
 
         JTextField tfCodPrestador = ro(nvl(codPrestador, ""));
         JTextField tfNumAut = ro(nvl(numAutorizacion, ""));
-
         JTextField tfMIPRES = new JTextField();
 
-        // Fecha suministro + hora
         JDateChooser dcSumFecha = new JDateChooser();
         dcSumFecha.setDateFormatString("yyyy-MM-dd");
         JSpinner spHora = new JSpinner(new SpinnerNumberModel(15, 0, 23, 1));
@@ -107,71 +96,48 @@ public class JsonFormUI {
         pnlFechaSum.add(new JLabel(":"));
         pnlFechaSum.add(spMin);
 
-        JComboBox<String> cbTipoOS =
-                new JComboBox<>(new String[]{"01","02","03","04","05"});
+        JComboBox<String> cbTipoOS = new JComboBox<>(new String[]{"01","02","03","04","05"});
         cbTipoOS.setSelectedItem(dTipoOS);
 
         JTextField tfCodTec = ro(nvl(defCodTec, ""));
         JTextField tfNomTec = new JTextField(nvl(defNomTec, ""));
-
         JSpinner spCant = new JSpinner(new SpinnerNumberModel(1, 1, 9999, 1));
-
-        JComboBox<String> cbServTipoDoc =
-                new JComboBox<>(new String[]{"CC","CE","TI","PA","RC","NIT","DNI","PS"});
+        JComboBox<String> cbServTipoDoc = new JComboBox<>(new String[]{"CC","CE","TI","PA","RC","NIT","DNI","PS"});
         cbServTipoDoc.setSelectedItem("CC");
-
         JTextField tfServNumDoc = new JTextField(nvl(defDocServicio, ""));
-
         JTextField tfVrUnit = ro(String.valueOf(defVr));
-
-        JComboBox<String> cbConcepto =
-                new JComboBox<>(new String[]{"01","02","03","04","05"});
+        JComboBox<String> cbConcepto = new JComboBox<>(new String[]{"01","02","03","04","05"});
         cbConcepto.setSelectedItem(dConcepto);
-
-        JSpinner spValorPM = new JSpinner(
-                new SpinnerNumberModel(dValorPagoMod, 0, Integer.MAX_VALUE, 1));
-
+        JSpinner spValorPM = new JSpinner(new SpinnerNumberModel(dValorPagoMod, 0, Integer.MAX_VALUE, 1));
         JTextField tfNumFEV = new JTextField();
+        JSpinner spConsecServ = new JSpinner(new SpinnerNumberModel(dConsecServ, 1, 9999, 1));
 
-        JSpinner spConsecServ = new JSpinner(
-                new SpinnerNumberModel(dConsecServ, 1, 9999, 1));
-
-        // ---- add rows ----
         formAdd(form, c, r++, "NIT:", tfNit);
         formAdd(form, c, r++, "Número de la factura:", tfFactura);
         formAdd(form, c, r++, "Tipo de nota (opcional):", tfTipoNota);
         formAdd(form, c, r++, "Número de la nota (opcional):", tfNumNota);
-
         formAdd(form, c, r++, "Tipo de documento (usuario):", cbUserTipoDoc);
         formAdd(form, c, r++, "Número de documento (usuario):", tfUserNumDoc);
         formAdd(form, c, r++, "Tipo de usuario:", tfTipoUsuario);
-
         formAdd(form, c, r++, "Fecha de nacimiento:", dcNacimiento);
         formAdd(form, c, r++, "Código del sexo:", cbSexo);
         formAdd(form, c, r++, "Código país de residencia:", tfPaisRes);
         formAdd(form, c, r++, "Código municipio de residencia:", tfMun);
         formAdd(form, c, r++, "Código zona territorial:", tfZona);
-
         formAdd(form, c, r++, "Incapacidad:", cbIncap);
         formAdd(form, c, r++, "Código país de origen:", tfPaisOrigen);
         formAdd(form, c, r++, "Consecutivo usuario:", spConsecUser);
-
         formAdd(form, c, r++, "Código prestador:", tfCodPrestador);
         formAdd(form, c, r++, "Número de autorización:", tfNumAut);
         formAdd(form, c, r++, "ID MIPRES (opcional):", tfMIPRES);
-
         formAdd(form, c, r++, "Fecha suministro:", pnlFechaSum);
-
         formAdd(form, c, r++, "Tipo OS:", cbTipoOS);
         formAdd(form, c, r++, "Código tecnología de salud:", tfCodTec);
         formAdd(form, c, r++, "Nombre tecnología de salud:", tfNomTec);
-
         formAdd(form, c, r++, "Cantidad OS:", spCant);
         formAdd(form, c, r++, "Tipo documento (servicio):", cbServTipoDoc);
         formAdd(form, c, r++, "Número documento (servicio):", tfServNumDoc);
-
         formAdd(form, c, r++, "Valor unitario OS:", tfVrUnit);
-
         formAdd(form, c, r++, "Concepto de recaudo:", cbConcepto);
         formAdd(form, c, r++, "Valor pago moderador:", spValorPM);
         formAdd(form, c, r++, "Número FEV pago moderador:", tfNumFEV);
@@ -181,7 +147,6 @@ public class JsonFormUI {
         leftScroll.getVerticalScrollBar().setUnitIncrement(16);
         leftScroll.setPreferredSize(new Dimension(720, 520));
 
-        // ================== RIGHT PANEL: PREVIEW ==================
         JTextArea taPreview = new JTextArea();
         taPreview.setEditable(false);
         taPreview.setLineWrap(true);
@@ -199,8 +164,7 @@ public class JsonFormUI {
             }
             sb.append("\n\n");
 
-            sb.append("📅 Fecha de factura: ")
-                    .append(issueDate != null ? issueDate : "(no disponible)");
+            sb.append("📅 Fecha de factura: ").append(issueDate != null ? issueDate : "(no disponible)");
 
             Date d = dcSumFecha.getDate();
             Integer hh = (Integer) spHora.getValue();
@@ -231,21 +195,12 @@ public class JsonFormUI {
         };
 
         refreshPreview.run();
-
-        dcSumFecha.addPropertyChangeListener("date", new PropertyChangeListener() {
-            @Override public void propertyChange(PropertyChangeEvent evt) { refreshPreview.run(); }
-        });
-
-        ChangeListener timeListener = new ChangeListener() {
-            @Override public void stateChanged(ChangeEvent e) { refreshPreview.run(); }
-        };
+        dcSumFecha.addPropertyChangeListener("date", evt -> refreshPreview.run());
+        ChangeListener timeListener = e -> refreshPreview.run();
         spHora.addChangeListener(timeListener);
         spMin.addChangeListener(timeListener);
 
-        JScrollPane rightScroll = new JScrollPane(
-                taPreview,
-                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        JScrollPane rightScroll = new JScrollPane(taPreview);
         rightScroll.getVerticalScrollBar().setUnitIncrement(16);
         rightScroll.setPreferredSize(new Dimension(520, 520));
 
@@ -253,25 +208,25 @@ public class JsonFormUI {
         split.setResizeWeight(0.70);
         split.setBorder(null);
 
-        // ================== DIALOGO PROPIO CON ICONO ==================
-        final FormInput[] result = {null};
-
-        JDialog dialog = new JDialog((Frame) null, "Datos para generar JSON", true);
-        AppIcon.applyTo(dialog);
-        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-        dialog.setLayout(new BorderLayout());
-        dialog.add(split, BorderLayout.CENTER);
+        // ================== FRAME en lugar de JDialog ==================
+        JFrame frame = new JFrame("Datos para generar JSON");
+        AppIcon.applyTo(frame);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.setLayout(new BorderLayout());
+        frame.add(split, BorderLayout.CENTER);
 
         JPanel southButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton btnOk = new JButton("Generar JSON");
         JButton btnCancel = new JButton("Cancelar");
         southButtons.add(btnOk);
         southButtons.add(btnCancel);
-        dialog.add(southButtons, BorderLayout.SOUTH);
+        frame.add(southButtons, BorderLayout.SOUTH);
+
+        final FormInput[] result = {null};
 
         btnOk.addActionListener(e -> {
             try {
-                FormInput in = buildInput(
+                result[0] = buildInput(
                         tfTipoNota, tfNumNota,
                         cbUserTipoDoc, tfUserNumDoc, tfTipoUsuario,
                         dcNacimiento, cbSexo, tfPaisRes, tfMun, tfZona,
@@ -281,39 +236,28 @@ public class JsonFormUI {
                         cbConcepto, spValorPM, tfNumFEV, spConsecServ,
                         tfMIPRES, dcSumFecha, spHora, spMin
                 );
-                result[0] = in;
-                dialog.dispose();
-            } catch (IllegalArgumentException ex) {
-                JOptionPane.showMessageDialog(
-                        dialog,
-                        ex.getMessage(),
-                        "Validación",
-                        JOptionPane.WARNING_MESSAGE
-                );
+                frame.dispose();
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(
-                        dialog,
-                        "Error: " + ex.getMessage(),
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE
-                );
+                JOptionPane.showMessageDialog(frame, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
         btnCancel.addActionListener(e -> {
             result[0] = null;
-            dialog.dispose();
+            frame.dispose();
         });
 
-        dialog.pack();
-        dialog.setSize(1200, 650);
-        dialog.setLocationRelativeTo(null);
-        dialog.setVisible(true);
+        frame.setSize(1200, 650);
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+
+        // Esperar hasta que cierre
+        while (frame.isShowing()) {
+            try { Thread.sleep(35); } catch (Exception ignored) {}
+        }
 
         return result[0];
     }
-
-    // ================== BUILD FormInput ==================
     private FormInput buildInput(
             JTextField tfTipoNota,
             JTextField tfNumNota,
@@ -366,7 +310,7 @@ public class JsonFormUI {
         in.user_consecutivo = ((Number) spConsecUser.getValue()).intValue();
 
         in.serv_tipoOS = String.valueOf(cbTipoOS.getSelectedItem());
-        in.serv_codTec = nvl(defCodTec, "");
+        in.serv_codTec = defCodTec;
         in.serv_nomTec = must(tfNomTec.getText(), "Nombre tecnología de salud");
         in.serv_cant = ((Number) spCant.getValue()).intValue();
         in.serv_tipoDoc = String.valueOf(cbServTipoDoc.getSelectedItem());
@@ -383,6 +327,7 @@ public class JsonFormUI {
         if (d == null) {
             throw new IllegalArgumentException("Debe seleccionar fecha de suministro.");
         }
+
         Calendar cal = Calendar.getInstance();
         cal.setTime(d);
         cal.set(Calendar.HOUR_OF_DAY, (Integer) spHora.getValue());
@@ -395,20 +340,15 @@ public class JsonFormUI {
         return in;
     }
 
-    // ================== helpers ==================
-    private static void formAdd(JPanel p, GridBagConstraints c, int row,
-                                String label, JComponent comp) {
-        c.gridx = 0;
-        c.gridy = row;
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        p.add(new JLabel(label), c);
 
-        c.gridx = 1;
-        c.weightx= 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
+    // ================== helpers ==================
+    private static void formAdd(JPanel p, GridBagConstraints c, int row, String label, JComponent comp) {
+        c.gridx = 0; c.gridy = row; c.weightx = 0; c.fill = GridBagConstraints.NONE;
+        p.add(new JLabel(label), c);
+        c.gridx = 1; c.weightx = 1.0; c.fill = GridBagConstraints.HORIZONTAL;
         p.add(comp, c);
     }
+
     private static JTextField ro(String text) {
         JTextField t = new JTextField(text != null ? text : "");
         t.setEditable(false);
@@ -417,9 +357,8 @@ public class JsonFormUI {
     }
 
     private static String must(String v, String name) {
-        if (v == null || v.trim().isEmpty()) {
+        if (v == null || v.trim().isEmpty())
             throw new IllegalArgumentException("El campo '" + name + "' es obligatorio.");
-        }
         return v.trim();
     }
 
@@ -442,4 +381,3 @@ public class JsonFormUI {
         return (s == null || s.isBlank()) ? def : s;
     }
 }
-
