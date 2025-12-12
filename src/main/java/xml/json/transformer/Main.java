@@ -168,60 +168,50 @@ public class Main {
         // SELECTOR XML — FIX PARA QUE NO SE VEA EN BLANCO EN .EXE
         // ======================================================================
         private static File showXmlChooser(String lastDir) {
-                JFileChooser fc = new JFileChooser();
+
+                final JFileChooser fc = new JFileChooser();
                 fc.setCurrentDirectory(new File(lastDir));
                 fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML", "xml"));
+                fc.setDialogTitle("Seleccione el XML de entrada");
+                fc.setApproveButtonText("Seleccionar");
+                fc.setControlButtonsAreShown(true); // Shows Open/Cancel buttons inside the chooser
 
-                AtomicReference<File> selected = new AtomicReference<>(null);
-                CountDownLatch latch = new CountDownLatch(1);
+                // Main window (gives minimize/maximize + taskbar icon)
+                final JFrame win = new JFrame("Seleccione el XML de entrada");
+                AppIcon.applyTo(win);
+                win.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+                win.setLayout(new BorderLayout());
+                win.add(fc, BorderLayout.CENTER);
 
-                SwingUtilities.invokeLater(() -> {
-                        JFrame frame = new JFrame("Seleccione el XML de entrada");
-                        AppIcon.applyTo(frame);
+                win.setSize(900, 600);
+                win.setLocationRelativeTo(null);
+                win.setResizable(true);
+                win.setVisible(true);
 
-                        // Ensure it behaves like a normal window (taskbar + min/max)
-                        frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                        frame.setLayout(new BorderLayout());
-                        frame.setMinimumSize(new Dimension(900, 600));
-                        frame.setResizable(true);
+                final File[] selected = { null };
 
-                        // Optional: make the chooser feel more direct
-                        fc.setApproveButtonText("Seleccionar");
+                // Capture BOTH: double click and Open button (inside JFileChooser)
+                fc.addActionListener(e -> {
+                        String cmd = e.getActionCommand();
 
-                        frame.add(fc, BorderLayout.CENTER);
-
-                        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-                        JButton ok = new JButton("Seleccionar");
-                        JButton cancel = new JButton("Cancelar");
-                        south.add(ok);
-                        south.add(cancel);
-                        frame.add(south, BorderLayout.SOUTH);
-
-                        ok.addActionListener(e -> {
-                                selected.set(fc.getSelectedFile());
-                                frame.dispose();
-                        });
-
-                        cancel.addActionListener(e -> frame.dispose());
-
-                        frame.addWindowListener(new java.awt.event.WindowAdapter() {
-                                @Override public void windowClosed(java.awt.event.WindowEvent e) {
-                                        latch.countDown();
-                                }
-                        });
-
-                        frame.pack();
-                        frame.setLocationRelativeTo(null);
-                        frame.setVisible(true);
+                        if (JFileChooser.APPROVE_SELECTION.equals(cmd)) {
+                                selected[0] = fc.getSelectedFile();
+                                win.dispose();
+                        } else if (JFileChooser.CANCEL_SELECTION.equals(cmd)) {
+                                selected[0] = null;
+                                win.dispose();
+                        }
                 });
 
-                try {
-                        latch.await(); // Wait until the window closes (not on EDT)
-                } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
+                // Block until user closes (keeps your current flow style)
+                while (win.isShowing()) {
+                        try { Thread.sleep(35); } catch (InterruptedException ignored) {}
                 }
 
-                return selected.get();
+                return selected[0];
         }
 
+
 }
+
+
