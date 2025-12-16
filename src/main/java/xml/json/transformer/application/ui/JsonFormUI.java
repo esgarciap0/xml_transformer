@@ -140,7 +140,7 @@ public class JsonFormUI {
         formAdd(form, c, r++, "Valor unitario OS:", tfVrUnit);
         formAdd(form, c, r++, "Concepto de recaudo:", cbConcepto);
         formAdd(form, c, r++, "Valor pago moderador:", spValorPM);
-        formAdd(form, c, r++, "Número FEV pago moderador:", tfNumFEV);
+        formAdd(form, c, r++, "Número FEV pago moderador (opcional):", tfNumFEV);
         formAdd(form, c, r++, "Consecutivo del servicio:", spConsecServ);
 
         JScrollPane leftScroll = new JScrollPane(form);
@@ -304,8 +304,7 @@ public class JsonFormUI {
         in.user_numDoc = must(tfUserNumDoc.getText(), "Número de documento (usuario)");
         in.user_tipoUsuario = must(tfTipoUsuario.getText(), "Tipo de usuario");
 
-        in.user_fechaNac = dcNacimiento.getDate();
-        in.user_fechaNacStr = dateOrNull(dcNacimiento.getDate(), "yyyy-MM-dd");
+
 
         in.user_codSexo = String.valueOf(cbSexo.getSelectedItem());
         in.user_codPaisRes = must(tfPaisRes.getText(), "Código país de residencia");
@@ -333,6 +332,14 @@ public class JsonFormUI {
         if (d == null) {
             throw new IllegalArgumentException("Debe seleccionar fecha de suministro.");
         }
+//Fecha de nacimiento
+        Date nac = dcNacimiento.getDate();
+        if (nac == null) {
+            throw new IllegalArgumentException("La fecha de nacimiento es obligatoria.");
+        }
+        in.user_fechaNac = nac;
+        in.user_fechaNacStr = dateOrNull(nac, "yyyy-MM-dd");
+
 
         Calendar cal = Calendar.getInstance();
         cal.setTime(d);
