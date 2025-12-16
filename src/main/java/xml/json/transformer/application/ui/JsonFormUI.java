@@ -183,7 +183,7 @@ public class JsonFormUI {
                 String startDate = new SimpleDateFormat("yyyy-MM-dd").format(calStart.getTime());
                 String endDate = new SimpleDateFormat("yyyy-MM-dd").format(cal.getTime());
 
-                sb.append("\n🧾 Periodo de facturación (Paso F): ")
+                sb.append("\n🧾 Periodo de facturación")
                         .append(startDate).append(" a ").append(endDate)
                         .append("\n   (StartTime 00:00:00-05:00, EndTime 00:00:00-05:00)");
             } else {
