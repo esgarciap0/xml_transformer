@@ -8,39 +8,44 @@ import xml.json.transformer.application.ui.JsonFormUI;
 import xml.json.transformer.domain.InvoiceData;
 import xml.json.transformer.licensing.ActivationGate;
 import xml.json.transformer.ui.AppIcon;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
 import java.util.prefs.Preferences;
 
 public class Main {
 
+        // ======================================================================
+        // ENTRY POINT
+        // ======================================================================
         public static void main(String[] args) {
 
                 try {
                         UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 } catch (Exception ignore) {}
 
-                // iconos en JOptionPane
                 AppIcon.installAsDefaultIcon();
 
-                // 1️⃣ validar licencia
+                // ✔ If license exists → go directly to flow (NOT on EDT)
                 if (ActivationGate.isAlreadyActivated()) {
-                        runFlow();
+                        new Thread(Main::runFlow, "main-flow").start();
                         return;
                 }
 
-                // 2️⃣ mostrar ventana de bienvenida
-                showInitialWindow();
+                // ✔ Otherwise show activation window (ON EDT)
+                SwingUtilities.invokeLater(Main::showInitialWindow);
         }
 
+        // ======================================================================
+        // ACTIVATION WINDOW
+        // ======================================================================
         private static void showInitialWindow() {
 
                 JFrame app = new JFrame("XML Transformer");
@@ -71,13 +76,15 @@ public class Main {
                         boolean ok = ActivationGate.ensureActivated(app);
                         if (ok) {
                                 app.dispose();
-                                runFlow();
+
+                                // ✔ Continue flow on background thread
+                                new Thread(Main::runFlow, "main-flow").start();
                         }
                 });
         }
 
         // ======================================================================
-        // PROCESO PRINCIPAL
+        // MAIN BUSINESS FLOW (NOT EDT)
         // ======================================================================
         private static void runFlow() {
                 try {
@@ -95,10 +102,12 @@ public class Main {
 
                         XPath xp = XPathFactory.newInstance().newXPath();
 
-                        String issueDateStr = xp.evaluate("string(//*[local-name()='IssueDate'][1])", originalDoc).trim();
+                        String issueDateStr = xp.evaluate(
+                                "string(//*[local-name()='IssueDate'][1])", originalDoc).trim();
                         LocalDate issueDate = LocalDate.parse(issueDateStr);
 
-                        String factura = xp.evaluate("string(//*[local-name()='ParentDocumentID'][1])", originalDoc).trim();
+                        String factura = xp.evaluate(
+                                "string(//*[local-name()='ParentDocumentID'][1])", originalDoc).trim();
 
                         Path outDir = inputFile.getParentFile().toPath().resolve(factura);
                         Files.createDirectories(outDir);
@@ -114,13 +123,21 @@ public class Main {
                                         "following-sibling::*[local-name()='Value'][1])",
                                 embeddedXml).trim();
 
-                        String numAutorizacion = xp.evaluate("string(//*[local-name()='InvoiceAuthorization'][1])", embeddedXml).trim();
-                        String codTec = xp.evaluate("string(//*[local-name()='StandardItemIdentification']/*[local-name()='ID'][1])", embeddedXml).trim();
-                        String nomTec = xp.evaluate("string(//*[local-name()='Item']/*[local-name()='Description'][1])", embeddedXml).trim();
+                        String numAutorizacion = xp.evaluate(
+                                "string(//*[local-name()='InvoiceAuthorization'][1])", embeddedXml).trim();
+
+                        String codTec = xp.evaluate(
+                                "string(//*[local-name()='StandardItemIdentification']/*[local-name()='ID'][1])",
+                                embeddedXml).trim();
+
+                        String nomTec = xp.evaluate(
+                                "string(//*[local-name()='Item']/*[local-name()='Description'][1])",
+                                embeddedXml).trim();
 
                         int vr = 0;
                         try {
-                                String v = xp.evaluate("string(//*[local-name()='LineExtensionAmount'][1])",
+                                String v = xp.evaluate(
+                                        "string(//*[local-name()='LineExtensionAmount'][1])",
                                         embeddedXml).replaceAll("[^0-9.]", "");
                                 vr = (int) Math.floor(Double.parseDouble(v));
                         } catch (Exception ignored) {}
@@ -129,7 +146,9 @@ public class Main {
                                 "string(//*[local-name()='AccountingCustomerParty']//*[local-name()='CompanyID'][1])",
                                 originalDoc).trim();
 
-                        String noteHeader = xp.evaluate("string(//*[local-name()='Note'][1])", embeddedXml).trim();
+                        String noteHeader = xp.evaluate(
+                                "string(//*[local-name()='Note'][1])",
+                                embeddedXml).trim();
 
                         String nitObligado = xp.evaluate(
                                 "string(//*[local-name()='CompanyID'][@schemeID='8'][1])",
@@ -144,7 +163,7 @@ public class Main {
                         if (input == null) return;
 
                         if (input == FormInput.BACK) {
-                                runFlow(); // vuelve a seleccionar XML
+                                new Thread(Main::runFlow, "main-flow").start();
                                 return;
                         }
 
@@ -170,53 +189,52 @@ public class Main {
         }
 
         // ======================================================================
-        // SELECTOR XML — FIX PARA QUE NO SE VEA EN BLANCO EN .EXE
+        // XML FILE CHOOSER (JFrame + latch, EDT-safe)
         // ======================================================================
         private static File showXmlChooser(String lastDir) {
 
-                final JFileChooser fc = new JFileChooser();
-                fc.setCurrentDirectory(new File(lastDir));
-                fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML", "xml"));
-                fc.setDialogTitle("Seleccione el XML de entrada");
-                fc.setApproveButtonText("Seleccionar");
-                fc.setControlButtonsAreShown(true); // Shows Open/Cancel buttons inside the chooser
-
-                // Main window (gives minimize/maximize + taskbar icon)
-                final JFrame win = new JFrame("Seleccione el XML de entrada");
-                AppIcon.applyTo(win);
-                win.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                win.setLayout(new BorderLayout());
-                win.add(fc, BorderLayout.CENTER);
-
-                win.setSize(900, 600);
-                win.setLocationRelativeTo(null);
-                win.setResizable(true);
-                win.setVisible(true);
-
+                final CountDownLatch latch = new CountDownLatch(1);
                 final File[] selected = { null };
 
-                // Capture BOTH: double click and Open button (inside JFileChooser)
-                fc.addActionListener(e -> {
-                        String cmd = e.getActionCommand();
+                SwingUtilities.invokeLater(() -> {
 
-                        if (JFileChooser.APPROVE_SELECTION.equals(cmd)) {
-                                selected[0] = fc.getSelectedFile();
-                                win.dispose();
-                        } else if (JFileChooser.CANCEL_SELECTION.equals(cmd)) {
-                                selected[0] = null;
-                                win.dispose();
-                        }
+                        JFileChooser fc = new JFileChooser();
+                        fc.setCurrentDirectory(new File(lastDir));
+                        fc.setFileFilter(
+                                new javax.swing.filechooser.FileNameExtensionFilter("Archivos XML", "xml")
+                        );
+                        fc.setDialogTitle("Seleccione el XML de entrada");
+                        fc.setApproveButtonText("Seleccionar");
+                        fc.setControlButtonsAreShown(true);
+
+                        JFrame win = new JFrame("Seleccione el XML de entrada");
+                        AppIcon.applyTo(win);
+                        win.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+                        win.setLayout(new BorderLayout());
+                        win.add(fc, BorderLayout.CENTER);
+
+                        win.setSize(900, 600);
+                        win.setLocationRelativeTo(null);
+                        win.setResizable(true);
+                        win.setVisible(true);
+
+                        fc.addActionListener(e -> {
+                                if (JFileChooser.APPROVE_SELECTION.equals(e.getActionCommand())) {
+                                        selected[0] = fc.getSelectedFile();
+                                        win.dispose();
+                                        latch.countDown();
+                                } else if (JFileChooser.CANCEL_SELECTION.equals(e.getActionCommand())) {
+                                        selected[0] = null;
+                                        win.dispose();
+                                        latch.countDown();
+                                }
+                        });
                 });
 
-                // Block until user closes (keeps your current flow style)
-                while (win.isShowing()) {
-                        try { Thread.sleep(35); } catch (InterruptedException ignored) {}
-                }
+                try {
+                        latch.await(); // waits OUTSIDE EDT
+                } catch (InterruptedException ignored) {}
 
                 return selected[0];
         }
-
-
 }
-
-
