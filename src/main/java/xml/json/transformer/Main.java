@@ -33,13 +33,13 @@ public class Main {
 
                 AppIcon.installAsDefaultIcon();
 
-                // ✔ If license exists → go directly to flow (NOT on EDT)
+                // If license exists → go directly to flow
                 if (ActivationGate.isAlreadyActivated()) {
                         new Thread(Main::runFlow, "main-flow").start();
                         return;
                 }
 
-                // ✔ Otherwise show activation window (ON EDT)
+                // Otherwise show activation window
                 SwingUtilities.invokeLater(Main::showInitialWindow);
         }
 
@@ -76,15 +76,13 @@ public class Main {
                         boolean ok = ActivationGate.ensureActivated(app);
                         if (ok) {
                                 app.dispose();
-
-                                // ✔ Continue flow on background thread
                                 new Thread(Main::runFlow, "main-flow").start();
                         }
                 });
         }
 
         // ======================================================================
-        // MAIN BUSINESS FLOW (NOT EDT)
+        // MAIN BUSINESS FLOW (BACKGROUND THREAD)
         // ======================================================================
         private static void runFlow() {
                 try {
@@ -183,6 +181,9 @@ public class Main {
 
                         Desktop.getDesktop().open(outDir.toFile());
 
+                        // 👉 NUEVA VENTANA FINAL
+                        showFinishWindow();
+
                 } catch (Exception ex) {
                         JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage());
                 }
@@ -232,9 +233,53 @@ public class Main {
                 });
 
                 try {
-                        latch.await(); // waits OUTSIDE EDT
+                        latch.await(); // waits outside EDT
                 } catch (InterruptedException ignored) {}
 
                 return selected[0];
+        }
+
+        // ======================================================================
+        // FINAL WINDOW (REPEAT OR EXIT)
+        // ======================================================================
+        private static void showFinishWindow() {
+
+                SwingUtilities.invokeLater(() -> {
+
+                        JFrame win = new JFrame("XML Transformer");
+                        AppIcon.applyTo(win);
+                        win.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+                        win.setSize(420, 200);
+                        win.setLocationRelativeTo(null);
+                        win.setLayout(new BorderLayout());
+
+                        JLabel msg = new JLabel(
+                                "<html><center>Proceso finalizado correctamente.<br><br>" +
+                                        "¿Desea procesar otro XML?</center></html>",
+                                SwingConstants.CENTER
+                        );
+
+                        JButton againBtn = new JButton("Cambiar otro XML");
+                        JButton exitBtn = new JButton("Finalizar");
+
+                        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+                        buttons.add(againBtn);
+                        buttons.add(exitBtn);
+
+                        win.add(msg, BorderLayout.CENTER);
+                        win.add(buttons, BorderLayout.SOUTH);
+
+                        againBtn.addActionListener(e -> {
+                                win.dispose();
+                                new Thread(Main::runFlow, "main-flow").start();
+                        });
+
+                        exitBtn.addActionListener(e -> {
+                                win.dispose();
+                                System.exit(0);
+                        });
+
+                        win.setVisible(true);
+                });
         }
 }
