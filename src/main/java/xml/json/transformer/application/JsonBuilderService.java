@@ -1,21 +1,20 @@
 package xml.json.transformer.application;
 
-import org.w3c.dom.Document;
 import xml.json.transformer.application.model.FormInput;
 import xml.json.transformer.domain.InvoiceData;
 import xml.json.transformer.domain.UserData;
 
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
-import java.util.Calendar;
 
 public class JsonBuilderService {
 
     private final LocalDate issueDate;
+    private final FormInputValidator formInputValidator;
     private String fechaSuministro;
 
     public JsonBuilderService(LocalDate issueDate) {
         this.issueDate = issueDate;
+        this.formInputValidator = new FormInputValidator(issueDate);
     }
 
     public String getFechaSuministro() {
@@ -30,8 +29,7 @@ public class JsonBuilderService {
             String numAutorizacion
     ) throws Exception {
 
-        validate(in);
-
+        formInputValidator.validate(in);
         this.fechaSuministro = in.fechaSumStr;
 
         InvoiceData invoice = new InvoiceData();
@@ -53,61 +51,28 @@ public class JsonBuilderService {
         user.codPaisOrigen = in.user_codPaisOrigen;
         user.consecutivo = in.user_consecutivo;
 
-        UserData.OtrosServicios os = new UserData.OtrosServicios();
-        os.codPrestador = codPrestador;
-        os.numAutorizacion = numAutorizacion;
-        os.idMIPRES = nullIfEmpty(in.serv_idMIPRES);
-        os.fechaSuministroTecnologia = in.fechaSumStr;
-        os.tipoOS = in.serv_tipoOS;
-        os.codTecnologiaSalud = in.serv_codTec;
-        os.nomTecnologiaSalud = in.serv_nomTec;
-        os.cantidadOS = in.serv_cant;
-        os.tipoDocumentoIdentificacion = in.serv_tipoDoc;
-        os.numDocumentoIdentificacion = in.serv_numDoc;
-        os.vrUnitOS = in.serv_vr;
-        os.vrServicio = in.serv_vr;
-        os.conceptoRecaudo = in.serv_concepto;
-        os.valorPagoModerador = in.serv_valorPagoMod;
-        os.numFEVPagoModerador = nullIfEmpty(in.serv_numFEV);
-        os.consecutivo = in.serv_consecutivo;
+        UserData.OtrosServicios otherService = new UserData.OtrosServicios();
+        otherService.codPrestador = codPrestador;
+        otherService.numAutorizacion = numAutorizacion;
+        otherService.idMIPRES = nullIfEmpty(in.serv_idMIPRES);
+        otherService.fechaSuministroTecnologia = in.fechaSumStr;
+        otherService.tipoOS = in.serv_tipoOS;
+        otherService.codTecnologiaSalud = in.serv_codTec;
+        otherService.nomTecnologiaSalud = in.serv_nomTec;
+        otherService.cantidadOS = in.serv_cant;
+        otherService.tipoDocumentoIdentificacion = in.serv_tipoDoc;
+        otherService.numDocumentoIdentificacion = in.serv_numDoc;
+        otherService.vrUnitOS = in.serv_vr;
+        otherService.vrServicio = in.serv_vr;
+        otherService.conceptoRecaudo = in.serv_concepto;
+        otherService.valorPagoModerador = in.serv_valorPagoMod;
+        otherService.numFEVPagoModerador = nullIfEmpty(in.serv_numFEV);
+        otherService.consecutivo = in.serv_consecutivo;
 
-        user.servicios.otrosServicios.add(os);
+        user.servicios.otrosServicios.add(otherService);
         invoice.usuarios.add(user);
 
         return invoice;
-    }
-
-    private void validate(FormInput in) throws Exception {
-
-        if (in.user_fechaNac != null) {
-            Calendar hoy = Calendar.getInstance();
-            hoy.set(Calendar.HOUR_OF_DAY, 0);
-            hoy.set(Calendar.MINUTE, 0);
-            hoy.set(Calendar.SECOND, 0);
-            hoy.set(Calendar.MILLISECOND, 0);
-
-            if (!in.user_fechaNac.before(hoy.getTime())) {
-                throw new Exception("La fecha de nacimiento debe ser anterior a hoy.");
-            }
-        }
-
-        if (in.fechaSum == null) {
-            throw new Exception("Debe seleccionar una fecha de suministro.");
-        }
-
-        if (issueDate != null) {
-            Calendar fs = Calendar.getInstance();
-            fs.setTime(in.fechaSum);
-            LocalDate fSum = LocalDate.of(
-                    fs.get(Calendar.YEAR),
-                    fs.get(Calendar.MONTH) + 1,
-                    fs.get(Calendar.DAY_OF_MONTH)
-            );
-
-            if (fSum.isAfter(issueDate)) {
-                throw new Exception("La fecha de suministro no puede ser posterior a la IssueDate del XML (" + issueDate + ").");
-            }
-        }
     }
 
     private String nullIfEmpty(String s) {

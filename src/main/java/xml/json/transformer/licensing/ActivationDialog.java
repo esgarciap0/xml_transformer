@@ -5,12 +5,10 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.io.File;
 
-import static xml.json.transformer.licensing.FingerprintServiceWin.*;
 import static xml.json.transformer.licensing.LicenseModels.LicenseFile;
 
 public class ActivationDialog extends JDialog {
     private String deviceId;
-    private Components comps;
     private boolean activated = false;
 
     public ActivationDialog(Frame owner) {
@@ -20,8 +18,7 @@ public class ActivationDialog extends JDialog {
         setLocationRelativeTo(owner);
 
         // recoger huella
-        this.comps = FingerprintServiceWin.collect();
-        this.deviceId = FingerprintServiceWin.computeDeviceId(comps);
+        this.deviceId = new FingerprintService().getLocalDeviceId();
 
         JTextArea ta = new JTextArea(
                 "Huella del equipo:\n" + deviceId +

@@ -1,7 +1,6 @@
 package xml.json.transformer.licensing;
 
 import javax.swing.*;
-import static xml.json.transformer.licensing.FingerprintServiceWin.*;
 
 public class ActivationGate {
 
@@ -12,8 +11,7 @@ public class ActivationGate {
             if (lic == null) return false;
 
             // 2. Obtener DeviceId local correcto
-            FingerprintServiceWin.Components c = FingerprintServiceWin.collect();
-            String deviceId = FingerprintServiceWin.computeDeviceId(c);
+            String deviceId = new FingerprintService().getLocalDeviceId();
 
             if (deviceId == null || deviceId.isBlank()) return false;
 
@@ -33,8 +31,7 @@ public class ActivationGate {
     public static boolean ensureActivated(JFrame appOwner) {
         try {
             var saved = LicenseStorage.loadEncryptedOrNull();
-            var comps = FingerprintServiceWin.collect();
-            var localDeviceId = FingerprintServiceWin.computeDeviceId(comps);
+            var localDeviceId = new FingerprintService().getLocalDeviceId();
             var verifier = new LicenseVerifier();
 
             if (saved != null) {

@@ -1,4 +1,10 @@
 target/
+dist/
+build-check/
+.mvn-local/
+/XML Transformer/
+/*.exe
+payload_canon.json
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

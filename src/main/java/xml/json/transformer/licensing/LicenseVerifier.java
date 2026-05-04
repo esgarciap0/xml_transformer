@@ -3,7 +3,6 @@ package xml.json.transformer.licensing;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -26,14 +25,10 @@ public class LicenseVerifier {
             IwIDAQAB
             -----END PUBLIC KEY-----""";
 
-    private final ObjectMapper om = new ObjectMapper();
     private final PublicKey publicKey;
 
     public LicenseVerifier() {
         this.publicKey = loadPublicKey(PUBLIC_KEY_PEM);
-        String fp = java.util.Base64.getEncoder().encodeToString(this.publicKey.getEncoded())
-                .substring(0, 24);
-        System.out.println("[DEBUG] PublicKey FP: " + fp);
     }
 
     public static PublicKey loadPublicKey(String pem) {
