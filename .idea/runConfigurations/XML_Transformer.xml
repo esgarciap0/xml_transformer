@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="XML Transformer" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="xml.json.transformer.Main" />
+    <module name="xml_transformer" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
